@@ -1,0 +1,27 @@
+{
+  "manifest_version": 2,
+  "name": "RecurDump Extension",
+  "version": "1.0.0",
+  "description": "Firefox extension for RecurDump data operations",
+  
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  
+  "browser_action": {
+    "default_title": "RecurDump",
+    "default_popup": "popup.html"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  
+  "background": {
+    "scripts": ["background.js"]
+  }
+} 

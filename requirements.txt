@@ -1,0 +1,12 @@
+# Core dependencies for RecurDump
+# Add specific dependencies as the project grows
+
+# Development dependencies
+pytest>=7.0.0
+black>=22.0.0
+flake8>=5.0.0
+mypy>=1.0.0
+
+# Documentation
+sphinx>=5.0.0
+sphinx-rtd-theme>=1.0.0 
