@@ -446,6 +446,71 @@
             font-size: 11px;
             font-weight: 600;
         }
+
+        /* Debug Styles */
+        .debug-copy-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            float: right;
+            margin-right: 8px;
+        }
+
+        .debug-copy-btn:hover {
+            background: #0056b3;
+        }
+
+        .debug-clear-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            float: right;
+        }
+
+        .debug-clear-btn:hover {
+            background: #545b62;
+        }
+
+        .debug-logs {
+            max-height: 150px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 8px;
+        }
+
+        .debug-entry {
+            font-family: monospace;
+            font-size: 10px;
+            color: #495057;
+            margin-bottom: 4px;
+            word-break: break-all;
+        }
+
+        .debug-entry:last-child {
+            margin-bottom: 0;
+        }
+
+        .debug-entry.error {
+            color: #dc3545;
+        }
+
+        .debug-entry.success {
+            color: #28a745;
+        }
+
+        .debug-entry.info {
+            color: #007bff;
+        }
     </style>
 </head>
 <body>
@@ -501,6 +566,12 @@
                     🔗 EXTRACT LINKS
                 </button>
             </div>
+            
+            <div class="form-group">
+                <button id="test-background-btn" class="form-button" style="background: #28a745;">
+                    🧪 TEST BACKGROUND
+                </button>
+            </div>
         </div>
     </div>
 
@@ -532,6 +603,20 @@
                 <div id="extraction-links-list" class="extraction-links-list">
                     <!-- Links will be populated here -->
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Debug Section -->
+    <div id="debug-section" class="section">
+        <div class="section-header">
+            <span>🐛 Debug Logs</span>
+            <button id="copy-debug-btn" class="debug-copy-btn">Copy</button>
+            <button id="clear-debug-btn" class="debug-clear-btn">Clear</button>
+        </div>
+        <div class="section-content">
+            <div id="debug-logs" class="debug-logs">
+                <div class="debug-entry">Ready for extraction...</div>
             </div>
         </div>
     </div>

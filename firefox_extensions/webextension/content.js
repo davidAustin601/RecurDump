@@ -118,6 +118,30 @@
         
         // Setup monitoring for dynamic changes
         setupMutationObserver();
+        
+        // Listen for extraction requests
+        browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+            if (message.type === 'EXTRACT_LINKS_REQUEST') {
+                console.log('RecurTrack Content: Received extraction request for model:', message.model);
+                
+                const targetLinks = [];
+                const allLinks = document.querySelectorAll('a[href]');
+                
+                console.log('RecurTrack Content: Found', allLinks.length, 'total links');
+                
+                allLinks.forEach((link, index) => {
+                    const href = link.href;
+                    if (href && href.includes('/' + message.model + '/video/')) {
+                        console.log('RecurTrack Content: Found matching link:', href);
+                        targetLinks.push(href);
+                    }
+                });
+                
+                console.log('RecurTrack Content: Returning', targetLinks.length, 'matching links');
+                sendResponse({ links: targetLinks });
+                return true; // Keep message channel open
+            }
+        });
     }
 
     // Start the content script

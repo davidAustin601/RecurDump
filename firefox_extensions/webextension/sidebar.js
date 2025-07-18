@@ -20,17 +20,39 @@
     const refreshBtn = document.getElementById('refresh-btn');
     const modeInput = document.getElementById('mode-input');
     const extractLinksBtn = document.getElementById('extract-links-btn');
+    const testBackgroundBtn = document.getElementById('test-background-btn');
     const extractionResultsSection = document.getElementById('extraction-results-section');
     const extractionModel = document.getElementById('extraction-model');
     const extractionStatusText = document.getElementById('extraction-status-text');
     const extractionLinkCount = document.getElementById('extraction-link-count');
     const extractionLinksContainer = document.getElementById('extraction-links-container');
     const extractionLinksList = document.getElementById('extraction-links-list');
+    const debugLogs = document.getElementById('debug-logs');
+    const copyDebugBtn = document.getElementById('copy-debug-btn');
+    const clearDebugBtn = document.getElementById('clear-debug-btn');
 
     // State
     let currentDetection = null;
     let detectionHistory = [];
     let currentExtraction = null;
+
+    // Debug logging function
+    function addDebugLog(message, type = 'info') {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = document.createElement('div');
+        logEntry.className = `debug-entry ${type}`;
+        logEntry.textContent = `[${timestamp}] ${message}`;
+        
+        debugLogs.appendChild(logEntry);
+        
+        // Auto-scroll to bottom
+        debugLogs.scrollTop = debugLogs.scrollHeight;
+        
+        // Keep only last 50 entries
+        while (debugLogs.children.length > 50) {
+            debugLogs.removeChild(debugLogs.firstChild);
+        }
+    }
 
     // Function to update status display
     function updateStatus(detection) {
@@ -206,16 +228,37 @@
                 break;
                 
             case 'EXTRACTION_STARTED':
+                addDebugLog('Extraction started - opening new tab', 'info');
+                currentExtraction = message.data;
+                updateExtractionDisplay(currentExtraction);
+                break;
+                
             case 'EXTRACTION_WAITING_FOR_CLOUDFLARE':
+                addDebugLog('Waiting for CloudFlare completion...', 'info');
+                currentExtraction = message.data;
+                updateExtractionDisplay(currentExtraction);
+                break;
+                
             case 'EXTRACTION_STEP_2_STARTED':
+                addDebugLog('Starting link extraction from page...', 'info');
+                currentExtraction = message.data;
+                updateExtractionDisplay(currentExtraction);
+                break;
+                
             case 'EXTRACTION_COMPLETED':
+                addDebugLog(`Extraction completed! Found ${message.data.links ? message.data.links.length : 0} links`, 'success');
                 currentExtraction = message.data;
                 updateExtractionDisplay(currentExtraction);
                 break;
                 
             case 'EXTRACTION_ERROR':
+                addDebugLog(`Extraction failed: ${message.error}`, 'error');
                 currentExtraction = { status: 'error', error: message.error };
                 updateExtractionDisplay(currentExtraction);
+                break;
+                
+            case 'EXTRACTION_MESSAGE_RECEIVED':
+                addDebugLog(`Background script received extraction request for: ${message.model}`, 'info');
                 break;
         }
     }
@@ -234,6 +277,22 @@
         }
     }
 
+    // Function to test background script communication
+    async function testBackgroundScript() {
+        try {
+            addDebugLog('Testing background script communication...', 'info');
+            
+            const response = await browser.runtime.sendMessage({
+                type: 'TEST_MESSAGE'
+            });
+            
+            addDebugLog(`Background test response: ${JSON.stringify(response)}`, 'success');
+            
+        } catch (error) {
+            addDebugLog(`Background test failed: ${error.message}`, 'error');
+        }
+    }
+
     // Function to handle extract links button click
     async function handleExtractLinks() {
         try {
@@ -244,15 +303,31 @@
             // Get current model
             const model = modeInput.value.trim() || 'default';
             
-            // Send message to background script to start extraction
-            await browser.runtime.sendMessage({
-                type: 'EXTRACT_LINKS',
-                model: model
-            });
+            addDebugLog(`Starting extraction for model: ${model}`, 'info');
             
+            // Send message to background script to start extraction
+            try {
+                const response = await browser.runtime.sendMessage({
+                    type: 'EXTRACT_LINKS',
+                    model: model
+                });
+                
+                addDebugLog('Extraction request sent to background script', 'success');
+                addDebugLog(`Background response: ${JSON.stringify(response)}`, 'info');
+                
+                // Check if we should expect further updates
+                if (response.success) {
+                    addDebugLog('Waiting for extraction updates...', 'info');
+                }
+                
+            } catch (error) {
+                addDebugLog(`Message sending failed: ${error.message}`, 'error');
+                throw error;
+            }
             console.log('RecurTrack Sidebar: Extract links initiated for model:', model);
             
         } catch (error) {
+            addDebugLog(`Error: ${error.message}`, 'error');
             console.error('RecurTrack Sidebar: Error extracting links:', error);
         } finally {
             // Re-enable button after a short delay
@@ -333,9 +408,49 @@
     refreshBtn.addEventListener('click', refreshData);
     modeInput.addEventListener('input', handleModeChange);
     extractLinksBtn.addEventListener('click', handleExtractLinks);
+    testBackgroundBtn.addEventListener('click', testBackgroundScript);
+    copyDebugBtn.addEventListener('click', () => {
+        const logText = Array.from(debugLogs.children)
+            .map(entry => entry.textContent)
+            .join('\n');
+        
+        navigator.clipboard.writeText(logText).then(() => {
+            addDebugLog('Debug logs copied to clipboard!', 'success');
+        }).catch(() => {
+            addDebugLog('Failed to copy logs', 'error');
+        });
+    });
+    
+    clearDebugBtn.addEventListener('click', () => {
+        debugLogs.innerHTML = '<div class="debug-entry">Debug logs cleared...</div>';
+    });
 
     // Listen for messages from background script
     browser.runtime.onMessage.addListener(handleRealtimeUpdate);
+
+    // Listen for storage changes for real-time updates
+    browser.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local') {
+            // Update detection history if it changed
+            if (changes.detectionHistory) {
+                detectionHistory = changes.detectionHistory.newValue || [];
+                updateHistory(detectionHistory);
+                updateStatistics(detectionHistory);
+            }
+            
+            // Update extraction state if it changed
+            if (changes.extractionState) {
+                currentExtraction = changes.extractionState.newValue;
+                updateExtractionDisplay(currentExtraction);
+            }
+            
+            // Update current detection if it changed
+            if (changes.currentDetection) {
+                currentDetection = changes.currentDetection.newValue;
+                updateStatus(currentDetection);
+            }
+        }
+    });
 
     // Initialize sidebar
     document.addEventListener('DOMContentLoaded', () => {

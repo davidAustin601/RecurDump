@@ -53,6 +53,9 @@
             type: 'HISTORY_UPDATED',
             history: detectionHistory
         });
+
+        // Check if this detection is related to a pending extraction
+        checkForPendingExtraction();
     }
 
     // Function to update the browser action badge
@@ -100,6 +103,9 @@
         notifyComponents({
             type: 'DETECTION_CLEARED'
         });
+
+        // Check if we need to proceed with any pending extraction
+        checkForPendingExtraction();
     }
 
     // Function to get current tab info
@@ -130,6 +136,12 @@
     // Function to handle link extraction process
     async function handleExtractLinks(model) {
         try {
+            console.log('RecurTrack Background: handleExtractLinks called with model:', model);
+            
+            if (!model || model.trim() === '') {
+                throw new Error('Model name is required');
+            }
+            
             // Step 1: Construct URL and open new tab
             const modelUrl = `https://www.recu.me/performer/${model}`;
             console.log('RecurTrack Background: Opening URL:', modelUrl);
@@ -159,6 +171,7 @@
             });
             
             // Monitor the tab for page load completion
+            console.log('RecurTrack Background: Starting to monitor tab:', newTab.id);
             monitorTabForExtraction(newTab.id);
             
         } catch (error) {
@@ -172,8 +185,12 @@
 
     // Function to monitor tab for extraction process
     function monitorTabForExtraction(tabId) {
+        console.log('RecurTrack Background: Setting up tab monitor for tab:', tabId);
+        
         // Listen for tab updates
         const tabUpdateListener = (updatedTabId, changeInfo, tab) => {
+            console.log('RecurTrack Background: Tab update detected:', updatedTabId, changeInfo.status);
+            
             if (updatedTabId === tabId && changeInfo.status === 'complete') {
                 console.log('RecurTrack Background: Tab loaded, checking for CloudFlare...');
                 
@@ -183,7 +200,7 @@
                 // Wait a bit for any dynamic content to load
                 setTimeout(() => {
                     checkForCloudFlareAndProceed(tabId);
-                }, 2000);
+                }, 3000);
             }
         };
         
@@ -217,15 +234,6 @@
                     data: extractionState
                 });
                 
-                // Set up a listener for when CloudFlare is cleared
-                const cloudflareClearedListener = () => {
-                    console.log('RecurTrack Background: CloudFlare cleared, proceeding to Step 2...');
-                    browser.storage.onChanged.removeListener(cloudflareClearedListener);
-                    proceedToStep2(tabId);
-                };
-                
-                browser.storage.onChanged.addListener(cloudflareClearedListener);
-                
             } else {
                 // No CloudFlare check, proceed directly to Step 2
                 console.log('RecurTrack Background: No CloudFlare check detected, proceeding to Step 2...');
@@ -234,6 +242,21 @@
             
         } catch (error) {
             console.error('RecurTrack Background: Error checking CloudFlare:', error);
+        }
+    }
+
+    // Function to check for pending extraction when CloudFlare is cleared
+    async function checkForPendingExtraction() {
+        try {
+            const result = await browser.storage.local.get(['extractionState']);
+            const extractionState = result.extractionState;
+            
+            if (extractionState && extractionState.status === 'waiting_for_cloudflare_completion') {
+                console.log('RecurTrack Background: CloudFlare cleared, proceeding with pending extraction...');
+                proceedToStep2(extractionState.tabId);
+            }
+        } catch (error) {
+            console.error('RecurTrack Background: Error checking pending extraction:', error);
         }
     }
 
@@ -260,19 +283,36 @@
                 data: extractionState
             });
             
+            // Wait a bit more for dynamic content to fully load
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
             // Execute content script to extract links
+            console.log('RecurTrack Background: Executing content script for model:', extractionState.model);
+            
             const extractedLinks = await browser.tabs.executeScript(tabId, {
                 code: `
                     // Step 2: Extract links that match the pattern
+                    console.log('RecurTrack Content: Starting link extraction...');
+                    
                     const targetLinks = [];
                     const allLinks = document.querySelectorAll('a[href]');
+                    const modelName = '${extractionState.model}';
                     
-                    allLinks.forEach(link => {
+                    console.log('RecurTrack Content: Model name:', modelName);
+                    console.log('RecurTrack Content: Total links found:', allLinks.length);
+                    
+                    allLinks.forEach((link, index) => {
                         const href = link.href;
-                        if (href && href.startsWith('https://www.recu.me/daddycok4/video/')) {
+                        console.log('RecurTrack Content: Link', index, ':', href);
+                        
+                        if (href && href.includes('/' + modelName + '/video/')) {
+                            console.log('RecurTrack Content: MATCH FOUND:', href);
                             targetLinks.push(href);
                         }
                     });
+                    
+                    console.log('RecurTrack Content: Total matching links:', targetLinks.length);
+                    console.log('RecurTrack Content: Matching links:', targetLinks);
                     
                     // Return the found links
                     targetLinks;
@@ -280,7 +320,27 @@
             });
             
             const links = extractedLinks[0] || [];
-            console.log('RecurTrack Background: Found', links.length, 'links');
+            console.log('RecurTrack Background: Found', links.length, 'links:', links);
+            
+            // If no links found, try alternative method
+            if (links.length === 0) {
+                console.log('RecurTrack Background: No links found with executeScript, trying alternative method...');
+                
+                // Try sending a message to the content script
+                try {
+                    const response = await browser.tabs.sendMessage(tabId, {
+                        type: 'EXTRACT_LINKS_REQUEST',
+                        model: extractionState.model
+                    });
+                    
+                    if (response && response.links) {
+                        console.log('RecurTrack Background: Alternative method found', response.links.length, 'links');
+                        links.push(...response.links);
+                    }
+                } catch (error) {
+                    console.error('RecurTrack Background: Alternative method failed:', error);
+                }
+            }
             
             // Update extraction state with results
             extractionState.step = 3;
@@ -308,6 +368,11 @@
     // Message handling
     browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.log('RecurTrack Background: Received message', message);
+        
+        // Add debug logging to sidebar
+        if (message.type === 'EXTRACT_LINKS') {
+            console.log('RecurTrack Background: EXTRACT_LINKS message received, calling handleExtractLinks...');
+        }
         
         switch (message.type) {
             case 'CLOUDFLARE_CHECK_DETECTED':
@@ -341,10 +406,38 @@
                 sendResponse({ mode: currentMode });
                 break;
                 
+            case 'TEST_MESSAGE':
+                console.log('RecurTrack Background: Test message received');
+                sendResponse({ success: true, message: 'Background script is working!' });
+                break;
+                
             case 'EXTRACT_LINKS':
                 console.log('RecurTrack Background: Extract links requested for model:', message.model);
-                handleExtractLinks(message.model);
-                sendResponse({ success: true, message: 'Starting link extraction...' });
+                
+                try {
+                    // Notify sidebar about the received message
+                    console.log('RecurTrack Background: About to notify components...');
+                    notifyComponents({
+                        type: 'EXTRACTION_MESSAGE_RECEIVED',
+                        model: message.model
+                    });
+                    console.log('RecurTrack Background: Components notified');
+                    
+                    // Send a simple test message to sidebar
+                    notifyComponents({
+                        type: 'EXTRACTION_STARTED',
+                        data: { model: message.model, step: 1, status: 'starting' }
+                    });
+                    
+                    // Call the extraction function
+                    handleExtractLinks(message.model);
+                    
+                    sendResponse({ success: true, message: 'Starting link extraction...' });
+                    
+                } catch (error) {
+                    console.error('RecurTrack Background: Error in EXTRACT_LINKS handler:', error);
+                    sendResponse({ success: false, error: error.message });
+                }
                 break;
                 
             default:
