@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RecurTrack</title>
+    <style>
+        body {
+            width: 300px;
+            min-height: 200px;
+            margin: 0;
+            padding: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 18px;
+            color: #212529;
+            font-weight: 600;
+        }
+
+        .status {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .status.detected {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+
+        .status.clear {
+            background: #d1edff;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+
+        .detection-info {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+            font-size: 12px;
+        }
+
+        .detection-info h3 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #495057;
+        }
+
+        .detection-info p {
+            margin: 4px 0;
+            color: #6c757d;
+        }
+
+        .url {
+            word-break: break-all;
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 4px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+
+        .button {
+            width: 100%;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .button.primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .button.primary:hover {
+            background: #0056b3;
+        }
+
+        .button.secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .button.secondary:hover {
+            background: #545b62;
+        }
+
+        .history-section {
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .history-item {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 8px;
+            margin-bottom: 8px;
+            font-size: 11px;
+        }
+
+        .history-item .time {
+            color: #6c757d;
+            font-size: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔍 RecurTrack</h1>
+    </div>
+
+    <div id="status" class="status clear">
+        <div id="status-text">No CloudFlare checks detected</div>
+    </div>
+
+    <div id="detection-info" class="detection-info" style="display: none;">
+        <h3>Detection Details</h3>
+        <p><strong>URL:</strong></p>
+        <div id="detection-url" class="url"></div>
+        <p><strong>Detected:</strong> <span id="detection-time"></span></p>
+        <p><strong>Indicators:</strong> <span id="detection-indicators"></span></p>
+    </div>
+
+    <button id="clear-btn" class="button secondary" style="display: none;">
+        Clear Detection
+    </button>
+
+    <button id="open-sidebar-btn" class="button primary" style="margin-top: 8px;">
+        📊 Open Sidebar Panel
+    </button>
+
+    <div class="history-section">
+        <h3 style="margin: 0 0 8px 0; font-size: 14px; color: #495057;">Recent Detections</h3>
+        <div id="history-list">
+            <div class="loading">Loading...</div>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html> 

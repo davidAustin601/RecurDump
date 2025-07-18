@@ -1,0 +1,408 @@
+/**
+ * RecurTrack Background Script
+ * Handles CloudFlare detection and extension state management
+ */
+
+(function() {
+    'use strict';
+
+    // Extension state
+    let currentDetection = null;
+    let detectionHistory = [];
+    let currentMode = 'default';
+
+    // Function to handle CloudFlare check detection
+    function handleCloudFlareDetection(data) {
+        console.log('RecurTrack Background: CloudFlare check detected', data);
+        
+        // Update current detection
+        currentDetection = data;
+        
+        // Add to history
+        detectionHistory.push({
+            ...data,
+            detectedAt: new Date().toISOString()
+        });
+        
+        // Keep only last 10 detections in memory
+        if (detectionHistory.length > 10) {
+            detectionHistory = detectionHistory.slice(-10);
+        }
+        
+        // Store in browser storage
+        browser.storage.local.set({
+            currentDetection: currentDetection,
+            detectionHistory: detectionHistory
+        }).catch(error => {
+            console.error('RecurTrack Background: Error saving to storage:', error);
+        });
+        
+        // Update browser action badge to show detection
+        updateBadge(true);
+        
+        // Show notification to user
+        showNotification(data);
+
+        // Notify all components about the update
+        notifyComponents({
+            type: 'DETECTION_UPDATED',
+            detection: currentDetection
+        });
+
+        notifyComponents({
+            type: 'HISTORY_UPDATED',
+            history: detectionHistory
+        });
+    }
+
+    // Function to update the browser action badge
+    function updateBadge(hasDetection) {
+        if (hasDetection) {
+            browser.browserAction.setBadgeText({
+                text: '!'
+            });
+            browser.browserAction.setBadgeBackgroundColor({
+                color: '#ff0000'
+            });
+        } else {
+            browser.browserAction.setBadgeText({
+                text: ''
+            });
+        }
+    }
+
+    // Function to show notification to user
+    function showNotification(data) {
+        const notificationOptions = {
+            type: 'basic',
+            iconUrl: 'icons/icon48.png',
+            title: 'RecurTrack: Human Check Detected',
+            message: `CloudFlare human check detected on ${new URL(data.url).hostname}. Please complete the verification manually.`
+        };
+
+        browser.notifications.create('cloudflare-detection', notificationOptions).catch(error => {
+            console.error('RecurTrack Background: Error creating notification:', error);
+        });
+    }
+
+    // Function to clear current detection
+    function clearDetection() {
+        currentDetection = null;
+        updateBadge(false);
+        
+        browser.storage.local.set({
+            currentDetection: null
+        }).catch(error => {
+            console.error('RecurTrack Background: Error clearing detection:', error);
+        });
+
+        // Notify all components about the cleared detection
+        notifyComponents({
+            type: 'DETECTION_CLEARED'
+        });
+    }
+
+    // Function to get current tab info
+    async function getCurrentTab() {
+        try {
+            const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+            return tabs[0];
+        } catch (error) {
+            console.error('RecurTrack Background: Error getting current tab:', error);
+            return null;
+        }
+    }
+
+    // Function to notify all components about updates
+    function notifyComponents(message) {
+        // Send to all tabs (for popup and sidebar)
+        browser.tabs.query({}).then(tabs => {
+            tabs.forEach(tab => {
+                browser.tabs.sendMessage(tab.id, message).catch(() => {
+                    // Ignore errors for tabs that don't have content scripts
+                });
+            });
+        }).catch(error => {
+            console.error('RecurTrack Background: Error notifying tabs:', error);
+        });
+    }
+
+    // Function to handle link extraction process
+    async function handleExtractLinks(model) {
+        try {
+            // Step 1: Construct URL and open new tab
+            const modelUrl = `https://www.recu.me/performer/${model}`;
+            console.log('RecurTrack Background: Opening URL:', modelUrl);
+            
+            // Open new tab with the model URL
+            const newTab = await browser.tabs.create({
+                url: modelUrl,
+                active: false // Open in background
+            });
+            
+            // Store extraction state
+            const extractionState = {
+                model: model,
+                tabId: newTab.id,
+                url: modelUrl,
+                step: 1,
+                status: 'waiting_for_page_load'
+            };
+            
+            // Store in browser storage
+            await browser.storage.local.set({ extractionState: extractionState });
+            
+            // Notify components about extraction start
+            notifyComponents({
+                type: 'EXTRACTION_STARTED',
+                data: extractionState
+            });
+            
+            // Monitor the tab for page load completion
+            monitorTabForExtraction(newTab.id);
+            
+        } catch (error) {
+            console.error('RecurTrack Background: Error starting extraction:', error);
+            notifyComponents({
+                type: 'EXTRACTION_ERROR',
+                error: error.message
+            });
+        }
+    }
+
+    // Function to monitor tab for extraction process
+    function monitorTabForExtraction(tabId) {
+        // Listen for tab updates
+        const tabUpdateListener = (updatedTabId, changeInfo, tab) => {
+            if (updatedTabId === tabId && changeInfo.status === 'complete') {
+                console.log('RecurTrack Background: Tab loaded, checking for CloudFlare...');
+                
+                // Remove the listener since we only need it once
+                browser.tabs.onUpdated.removeListener(tabUpdateListener);
+                
+                // Wait a bit for any dynamic content to load
+                setTimeout(() => {
+                    checkForCloudFlareAndProceed(tabId);
+                }, 2000);
+            }
+        };
+        
+        browser.tabs.onUpdated.addListener(tabUpdateListener);
+    }
+
+    // Function to check for CloudFlare and proceed with extraction
+    async function checkForCloudFlareAndProceed(tabId) {
+        try {
+            // Get current extraction state
+            const result = await browser.storage.local.get(['extractionState']);
+            const extractionState = result.extractionState;
+            
+            if (!extractionState || extractionState.tabId !== tabId) {
+                console.log('RecurTrack Background: No extraction state found for tab:', tabId);
+                return;
+            }
+            
+            // Check if there's a current CloudFlare detection
+            if (currentDetection && currentDetection.url === extractionState.url) {
+                console.log('RecurTrack Background: CloudFlare check detected, waiting for user completion...');
+                
+                // Update extraction state
+                extractionState.step = 1;
+                extractionState.status = 'waiting_for_cloudflare_completion';
+                await browser.storage.local.set({ extractionState: extractionState });
+                
+                // Notify components
+                notifyComponents({
+                    type: 'EXTRACTION_WAITING_FOR_CLOUDFLARE',
+                    data: extractionState
+                });
+                
+                // Set up a listener for when CloudFlare is cleared
+                const cloudflareClearedListener = () => {
+                    console.log('RecurTrack Background: CloudFlare cleared, proceeding to Step 2...');
+                    browser.storage.onChanged.removeListener(cloudflareClearedListener);
+                    proceedToStep2(tabId);
+                };
+                
+                browser.storage.onChanged.addListener(cloudflareClearedListener);
+                
+            } else {
+                // No CloudFlare check, proceed directly to Step 2
+                console.log('RecurTrack Background: No CloudFlare check detected, proceeding to Step 2...');
+                proceedToStep2(tabId);
+            }
+            
+        } catch (error) {
+            console.error('RecurTrack Background: Error checking CloudFlare:', error);
+        }
+    }
+
+    // Function to proceed to Step 2 (link extraction)
+    async function proceedToStep2(tabId) {
+        try {
+            console.log('RecurTrack Background: Starting Step 2 - Extracting links...');
+            
+            // Update extraction state
+            const result = await browser.storage.local.get(['extractionState']);
+            const extractionState = result.extractionState;
+            
+            if (!extractionState || extractionState.tabId !== tabId) {
+                return;
+            }
+            
+            extractionState.step = 2;
+            extractionState.status = 'extracting_links';
+            await browser.storage.local.set({ extractionState: extractionState });
+            
+            // Notify components
+            notifyComponents({
+                type: 'EXTRACTION_STEP_2_STARTED',
+                data: extractionState
+            });
+            
+            // Execute content script to extract links
+            const extractedLinks = await browser.tabs.executeScript(tabId, {
+                code: `
+                    // Step 2: Extract links that match the pattern
+                    const targetLinks = [];
+                    const allLinks = document.querySelectorAll('a[href]');
+                    
+                    allLinks.forEach(link => {
+                        const href = link.href;
+                        if (href && href.startsWith('https://www.recu.me/daddycok4/video/')) {
+                            targetLinks.push(href);
+                        }
+                    });
+                    
+                    // Return the found links
+                    targetLinks;
+                `
+            });
+            
+            const links = extractedLinks[0] || [];
+            console.log('RecurTrack Background: Found', links.length, 'links');
+            
+            // Update extraction state with results
+            extractionState.step = 3;
+            extractionState.status = 'completed';
+            extractionState.links = links;
+            extractionState.completedAt = new Date().toISOString();
+            
+            await browser.storage.local.set({ extractionState: extractionState });
+            
+            // Notify components about completion
+            notifyComponents({
+                type: 'EXTRACTION_COMPLETED',
+                data: extractionState
+            });
+            
+        } catch (error) {
+            console.error('RecurTrack Background: Error in Step 2:', error);
+            notifyComponents({
+                type: 'EXTRACTION_ERROR',
+                error: error.message
+            });
+        }
+    }
+
+    // Message handling
+    browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        console.log('RecurTrack Background: Received message', message);
+        
+        switch (message.type) {
+            case 'CLOUDFLARE_CHECK_DETECTED':
+                handleCloudFlareDetection(message.data);
+                sendResponse({ success: true });
+                break;
+                
+            case 'GET_CURRENT_DETECTION':
+                sendResponse({ detection: currentDetection });
+                break;
+                
+            case 'GET_DETECTION_HISTORY':
+                sendResponse({ history: detectionHistory });
+                break;
+                
+            case 'CLEAR_DETECTION':
+                clearDetection();
+                sendResponse({ success: true });
+                break;
+                
+            case 'UPDATE_MODE':
+                currentMode = message.mode;
+                // Store mode in browser storage
+                browser.storage.local.set({ currentMode: currentMode }).catch(error => {
+                    console.error('RecurTrack Background: Error saving mode:', error);
+                });
+                sendResponse({ success: true });
+                break;
+                
+            case 'GET_MODE':
+                sendResponse({ mode: currentMode });
+                break;
+                
+            case 'EXTRACT_LINKS':
+                console.log('RecurTrack Background: Extract links requested for model:', message.model);
+                handleExtractLinks(message.model);
+                sendResponse({ success: true, message: 'Starting link extraction...' });
+                break;
+                
+            default:
+                console.warn('RecurTrack Background: Unknown message type:', message.type);
+                sendResponse({ error: 'Unknown message type' });
+        }
+        
+        return true; // Keep message channel open for async response
+    });
+
+    // Tab update handling (to clear detection when user navigates away)
+    browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+        if (changeInfo.status === 'complete' && currentDetection) {
+            // Check if user navigated away from the page with CloudFlare check
+            if (tab.url !== currentDetection.url) {
+                console.log('RecurTrack Background: User navigated away, clearing detection');
+                clearDetection();
+            }
+        }
+    });
+
+    // Extension startup
+    browser.runtime.onStartup.addListener(() => {
+        console.log('RecurTrack Background: Extension started');
+        
+        // Load saved state from storage
+        browser.storage.local.get(['currentDetection', 'detectionHistory', 'currentMode']).then((result) => {
+            if (result.currentDetection) {
+                currentDetection = result.currentDetection;
+                updateBadge(true);
+            }
+            
+            if (result.detectionHistory) {
+                detectionHistory = result.detectionHistory;
+            }
+            
+            if (result.currentMode) {
+                currentMode = result.currentMode;
+            }
+        }).catch(error => {
+            console.error('RecurTrack Background: Error loading saved state:', error);
+        });
+    });
+
+    // Extension installation
+    browser.runtime.onInstalled.addListener((details) => {
+        console.log('RecurTrack Background: Extension installed/updated', details);
+        
+        // Initialize storage
+        browser.storage.local.set({
+            currentDetection: null,
+            detectionHistory: [],
+            currentMode: 'default'
+        }).catch(error => {
+            console.error('RecurTrack Background: Error initializing storage:', error);
+        });
+    });
+
+    console.log('RecurTrack Background: Script loaded');
+
+})(); 

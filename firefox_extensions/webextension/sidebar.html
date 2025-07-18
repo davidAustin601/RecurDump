@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RecurTrack Panel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+            color: #212529;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .header .subtitle {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .status-card {
+            background: white;
+            margin: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .status-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.detected {
+            background: #dc3545;
+        }
+
+        .status-dot.clear {
+            background: #28a745;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .status-text {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .clear-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.2s;
+        }
+
+        .clear-btn:hover {
+            background: #545b62;
+        }
+
+        .detection-details {
+            padding: 16px;
+            display: none;
+        }
+
+        .detection-details.show {
+            display: block;
+        }
+
+        .detail-row {
+            margin-bottom: 12px;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 4px;
+        }
+
+        .detail-value {
+            font-size: 13px;
+            word-break: break-all;
+        }
+
+        .url-display {
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 11px;
+            border: 1px solid #dee2e6;
+        }
+
+        .indicators-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .indicator-item {
+            background: #e9ecef;
+            padding: 6px 8px;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .indicator-item.active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .section {
+            background: white;
+            margin: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .section-header {
+            padding: 12px 16px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+            font-size: 14px;
+            color: #495057;
+        }
+
+        .section-content {
+            padding: 16px;
+        }
+
+        .history-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            padding: 12px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+        }
+
+        .history-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .history-domain {
+            font-weight: 600;
+            font-size: 13px;
+            color: #495057;
+            margin-bottom: 4px;
+        }
+
+        .history-time {
+            font-size: 11px;
+            color: #6c757d;
+        }
+
+        .history-url {
+            font-size: 11px;
+            color: #007bff;
+            margin-top: 4px;
+            word-break: break-all;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .stat-card {
+            text-align: center;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #007bff;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 32px 16px;
+            color: #6c757d;
+        }
+
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state .text {
+            font-size: 14px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 32px 16px;
+            color: #6c757d;
+        }
+
+        .spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #007bff;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .refresh-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.2s;
+            width: 100%;
+            margin-top: 12px;
+        }
+
+        .refresh-btn:hover {
+            background: #0056b3;
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: inherit;
+            background: white;
+            color: #495057;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+
+        .form-input::placeholder {
+            color: #adb5bd;
+        }
+
+        .form-button {
+            width: 100%;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .form-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .form-button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .form-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Extraction Results Styles */
+        .extraction-info {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .extraction-details {
+            font-size: 12px;
+        }
+
+        .extraction-links-container {
+            margin-top: 12px;
+        }
+
+        .extraction-links-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            background: white;
+        }
+
+        .extraction-link-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f1f3f4;
+            font-size: 11px;
+            font-family: monospace;
+            word-break: break-all;
+            color: #007bff;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .extraction-link-item:hover {
+            background: #f8f9fa;
+        }
+
+        .extraction-link-item:last-child {
+            border-bottom: none;
+        }
+
+        .extraction-status-waiting {
+            color: #856404;
+            background: #fff3cd;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .extraction-status-extracting {
+            color: #0c5460;
+            background: #d1edff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .extraction-status-completed {
+            color: #155724;
+            background: #d4edda;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .extraction-status-error {
+            color: #721c24;
+            background: #f8d7da;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔍 RecurTrack</h1>
+        <div class="subtitle">CloudFlare Detection Panel</div>
+    </div>
+
+    <!-- Current Status Card -->
+    <div class="status-card">
+        <div class="status-header">
+            <div class="status-indicator">
+                <div id="status-dot" class="status-dot clear"></div>
+                <div id="status-text" class="status-text">No CloudFlare checks detected</div>
+            </div>
+            <button id="clear-btn" class="clear-btn" style="display: none;">Clear</button>
+        </div>
+        
+        <div id="detection-details" class="detection-details">
+            <div class="detail-row">
+                <div class="detail-label">URL</div>
+                <div id="detection-url" class="detail-value url-display"></div>
+            </div>
+            
+            <div class="detail-row">
+                <div class="detail-label">Detected</div>
+                <div id="detection-time" class="detail-value"></div>
+            </div>
+            
+            <div class="detail-row">
+                <div class="detail-label">Detection Indicators</div>
+                <div id="detection-indicators" class="indicators-grid">
+                    <div class="indicator-item" data-indicator="title">Title</div>
+                    <div class="indicator-item" data-indicator="elements">Elements</div>
+                    <div class="indicator-item" data-indicator="text">Text</div>
+                    <div class="indicator-item" data-indicator="domain">Domain</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mode Configuration Section -->
+    <div class="section">
+        <div class="section-header">Configuration</div>
+        <div class="section-content">
+            <div class="form-group">
+                <label for="mode-input" class="form-label">Model</label>
+                <input type="text" id="mode-input" class="form-input" placeholder="Enter model..." value="default">
+            </div>
+            
+            <div class="form-group">
+                <button id="extract-links-btn" class="form-button">
+                    🔗 EXTRACT LINKS
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Extraction Results Section -->
+    <div id="extraction-results-section" class="section" style="display: none;">
+        <div class="section-header">
+            <span id="extraction-status">📊 Extraction Results</span>
+        </div>
+        <div class="section-content">
+            <div id="extraction-info" class="extraction-info">
+                <div class="extraction-details">
+                    <div class="detail-row">
+                        <div class="detail-label">Model</div>
+                        <div id="extraction-model" class="detail-value"></div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Status</div>
+                        <div id="extraction-status-text" class="detail-value"></div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Links Found</div>
+                        <div id="extraction-link-count" class="detail-value">0</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="extraction-links-container" class="extraction-links-container" style="display: none;">
+                <div class="detail-label" style="margin-bottom: 8px;">Extracted Links</div>
+                <div id="extraction-links-list" class="extraction-links-list">
+                    <!-- Links will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Section -->
+    <div class="section">
+        <div class="section-header">Statistics</div>
+        <div class="section-content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div id="total-detections" class="stat-number">0</div>
+                    <div class="stat-label">Total Detections</div>
+                </div>
+                <div class="stat-card">
+                    <div id="today-detections" class="stat-number">0</div>
+                    <div class="stat-label">Today</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Section -->
+    <div class="section">
+        <div class="section-header">Recent Detections</div>
+        <div class="section-content">
+            <div id="history-list" class="history-list">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div>Loading history...</div>
+                </div>
+            </div>
+            <button id="refresh-btn" class="refresh-btn">Refresh Data</button>
+        </div>
+    </div>
+
+    <script src="sidebar.js"></script>
+</body>
+</html> 
