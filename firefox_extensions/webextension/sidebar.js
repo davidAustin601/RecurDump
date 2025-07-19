@@ -37,6 +37,7 @@
     const databaseList = document.getElementById('database-list');
     const copyDatabaseBtn = document.getElementById('copy-database-btn');
     const clearDatabaseBtn = document.getElementById('clear-database-btn');
+    const clearAllBtn = document.getElementById('clear-all-btn');
 
     // State
     let currentDetection = null;
@@ -499,6 +500,38 @@
         }
     }
 
+    // Function to clear all data (extraction results, database, and debug logs)
+    async function clearAllData() {
+        try {
+            addDebugLog('Clearing all data...', 'info');
+            
+            // Clear extraction state
+            await browser.storage.local.remove(['extractionState']);
+            currentExtraction = null;
+            extractionResultsSection.style.display = 'none';
+            
+            // Clear filename database
+            await browser.storage.local.remove(['filenameDatabase']);
+            filenameDatabase = [];
+            filenameDatabaseSection.style.display = 'none';
+            
+            // Clear debug logs (keep one entry)
+            debugLogs.innerHTML = '<div class="debug-entry">All data cleared...</div>';
+            
+            // Clear current detection
+            await browser.runtime.sendMessage({
+                type: 'CLEAR_DETECTION'
+            });
+            currentDetection = null;
+            updateStatus(null);
+            
+            addDebugLog('All data cleared successfully!', 'success');
+            
+        } catch (error) {
+            addDebugLog(`Failed to clear all data: ${error.message}`, 'error');
+        }
+    }
+
     // Event listeners
     clearBtn.addEventListener('click', clearDetection);
     modeInput.addEventListener('input', handleModeChange);
@@ -523,6 +556,7 @@
     clearLinksBtn.addEventListener('click', clearExtractedLinks);
     copyDatabaseBtn.addEventListener('click', copyDatabaseAsCSV);
     clearDatabaseBtn.addEventListener('click', clearFilenameDatabase);
+    clearAllBtn.addEventListener('click', clearAllData);
 
     // Listen for messages from background script
     browser.runtime.onMessage.addListener(handleRealtimeUpdate);
