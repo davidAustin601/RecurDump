@@ -20,7 +20,6 @@
     const refreshBtn = document.getElementById('refresh-btn');
     const modeInput = document.getElementById('mode-input');
     const extractLinksBtn = document.getElementById('extract-links-btn');
-    const testBackgroundBtn = document.getElementById('test-background-btn');
     const extractAllPagesCheckbox = document.getElementById('extract-all-pages-checkbox');
     const extractionResultsSection = document.getElementById('extraction-results-section');
     const extractionModel = document.getElementById('extraction-model');
@@ -286,21 +285,7 @@
         }
     }
 
-    // Function to test background script communication
-    async function testBackgroundScript() {
-        try {
-            addDebugLog('Testing background script communication...', 'info');
-            
-            const response = await browser.runtime.sendMessage({
-                type: 'TEST_MESSAGE'
-            });
-            
-            addDebugLog(`Background test response: ${JSON.stringify(response)}`, 'success');
-            
-        } catch (error) {
-            addDebugLog(`Background test failed: ${error.message}`, 'error');
-        }
-    }
+
 
     // Function to handle extract links button click
     async function handleExtractLinks() {
@@ -462,7 +447,6 @@
     refreshBtn.addEventListener('click', refreshData);
     modeInput.addEventListener('input', handleModeChange);
     extractLinksBtn.addEventListener('click', handleExtractLinks);
-    testBackgroundBtn.addEventListener('click', testBackgroundScript);
     copyDebugBtn.addEventListener('click', () => {
         const logText = Array.from(debugLogs.children)
             .map(entry => entry.textContent)
