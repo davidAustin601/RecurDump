@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RecurTrack Options</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8f9fa;
+            color: #212529;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .header .subtitle {
+            margin-top: 8px;
+            opacity: 0.9;
+        }
+
+        .section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .section h2 {
+            margin-top: 0;
+            color: #495057;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #495057;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+
+        .form-textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-checkbox {
+            width: 18px;
+            height: 18px;
+            accent-color: #007bff;
+        }
+
+        .form-checkbox-label {
+            font-size: 14px;
+            color: #495057;
+            cursor: pointer;
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+            background: white;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .status-message {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-box h3 {
+            margin-top: 0;
+            color: #0056b3;
+        }
+
+        .info-box p {
+            margin-bottom: 10px;
+        }
+
+        .info-box ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .info-box li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔍 RecurTrack Options</h1>
+        <div class="subtitle">Configure your video link and filename extraction settings</div>
+    </div>
+
+    <div class="info-box">
+        <h3>📋 About RecurTrack</h3>
+        <p>RecurTrack is a powerful Firefox extension that helps you extract video links and filenames from model profile pages.</p>
+        <ul>
+            <li><strong>Link Extraction:</strong> Automatically finds video links from profile pages</li>
+            <li><strong>Filename Extraction:</strong> Visits each video page to extract actual filenames</li>
+            <li><strong>Multi-page Support:</strong> Can extract from all pages of a model's profile</li>
+            <li><strong>CloudFlare Handling:</strong> Automatically detects and waits for CloudFlare challenges</li>
+            <li><strong>CSV Export:</strong> Export your data for further processing</li>
+        </ul>
+    </div>
+
+    <!-- General Settings -->
+    <div class="section">
+        <h2>⚙️ General Settings</h2>
+        
+        <div class="form-group">
+            <label for="default-model" class="form-label">Default Model Name</label>
+            <input type="text" id="default-model" class="form-input" placeholder="Enter default model name...">
+            <small>This will be pre-filled in the sidebar when you open it</small>
+        </div>
+
+        <div class="form-group">
+            <label for="default-extract-all-pages" class="form-label">Default Extraction Settings</label>
+            <div class="checkbox-container">
+                <input type="checkbox" id="default-extract-all-pages" class="form-checkbox">
+                <label for="default-extract-all-pages" class="form-checkbox-label">
+                    Extract from all pages (by default)
+                </label>
+            </div>
+            <div class="checkbox-container">
+                <input type="checkbox" id="default-extract-filenames" class="form-checkbox">
+                <label for="default-extract-filenames" class="form-checkbox-label">
+                    Extract filenames (by default)
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Extraction Settings -->
+    <div class="section">
+        <h2>🔍 Extraction Settings</h2>
+        
+        <div class="form-group">
+            <label for="page-load-delay" class="form-label">Page Load Delay (seconds)</label>
+            <select id="page-load-delay" class="form-select">
+                <option value="2">2 seconds</option>
+                <option value="3" selected>3 seconds</option>
+                <option value="4">4 seconds</option>
+                <option value="5">5 seconds</option>
+            </select>
+            <small>How long to wait for pages to load before extracting data</small>
+        </div>
+
+        <div class="form-group">
+            <label for="cloudflare-timeout" class="form-label">CloudFlare Timeout (minutes)</label>
+            <select id="cloudflare-timeout" class="form-select">
+                <option value="2">2 minutes</option>
+                <option value="3">3 minutes</option>
+                <option value="5" selected>5 minutes</option>
+                <option value="10">10 minutes</option>
+            </select>
+            <small>Maximum time to wait for CloudFlare challenge completion</small>
+        </div>
+
+        <div class="form-group">
+            <label for="max-pages" class="form-label">Maximum Pages to Extract</label>
+            <select id="max-pages" class="form-select">
+                <option value="5">5 pages</option>
+                <option value="10" selected>10 pages</option>
+                <option value="20">20 pages</option>
+                <option value="50">50 pages</option>
+                <option value="0">No limit</option>
+            </select>
+            <small>Limit the number of pages to extract from (0 = no limit)</small>
+        </div>
+    </div>
+
+    <!-- Output Settings -->
+    <div class="section">
+        <h2>📤 Output Settings</h2>
+        
+        <div class="form-group">
+            <label for="csv-separator" class="form-label">CSV Separator</label>
+            <select id="csv-separator" class="form-select">
+                <option value="," selected>Comma (,)</option>
+                <option value=";">Semicolon (;)</option>
+                <option value="\t">Tab</option>
+            </select>
+            <small>Separator to use when exporting CSV data</small>
+        </div>
+
+        <div class="form-group">
+            <label for="csv-include-headers" class="form-label">CSV Export Options</label>
+            <div class="checkbox-container">
+                <input type="checkbox" id="csv-include-headers" class="form-checkbox" checked>
+                <label for="csv-include-headers" class="form-checkbox-label">
+                    Include headers in CSV export
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="auto-save" class="form-label">Auto-Save Settings</label>
+            <div class="checkbox-container">
+                <input type="checkbox" id="auto-save" class="form-checkbox">
+                <label for="auto-save" class="form-checkbox-label">
+                    Automatically save extraction results
+                </label>
+            </div>
+            <small>Save results to browser storage for later access</small>
+        </div>
+    </div>
+
+    <!-- Advanced Settings -->
+    <div class="section">
+        <h2>🔧 Advanced Settings</h2>
+        
+        <div class="form-group">
+            <label for="debug-mode" class="form-label">Debug Mode</label>
+            <div class="checkbox-container">
+                <input type="checkbox" id="debug-mode" class="form-checkbox">
+                <label for="debug-mode" class="form-checkbox-label">
+                    Enable detailed debug logging
+                </label>
+            </div>
+            <small>Show detailed debug information in the sidebar</small>
+        </div>
+
+        <div class="form-group">
+            <label for="custom-link-pattern" class="form-label">Custom Link Pattern (Advanced)</label>
+            <textarea id="custom-link-pattern" class="form-textarea" placeholder="Leave empty to use default pattern..."></textarea>
+            <small>Custom regex pattern for finding video links (advanced users only)</small>
+        </div>
+    </div>
+
+    <!-- Data Management -->
+    <div class="section">
+        <h2>🗄️ Data Management</h2>
+        
+        <div class="form-group">
+            <label class="form-label">Storage Management</label>
+            <div class="button-group">
+                <button id="export-settings" class="btn btn-secondary">Export Settings</button>
+                <button id="import-settings" class="btn btn-secondary">Import Settings</button>
+                <button id="reset-settings" class="btn btn-secondary">Reset to Defaults</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Data Cleanup</label>
+            <div class="button-group">
+                <button id="clear-all-data" class="btn btn-secondary">Clear All Data</button>
+                <button id="export-all-data" class="btn btn-success">Export All Data</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="section">
+        <div class="button-group">
+            <button id="save-settings" class="btn btn-primary">💾 Save Settings</button>
+            <button id="cancel" class="btn btn-secondary">Cancel</button>
+        </div>
+        <div id="status-message" class="status-message"></div>
+    </div>
+
+    <script src="options.js"></script>
+</body>
+</html> 

@@ -765,6 +765,37 @@
         }).catch(error => {
             console.error('RecurTrack Background: Error initializing storage:', error);
         });
+        
+        // Create context menu
+        browser.contextMenus.create({
+            id: 'recurtrack-options',
+            title: 'RecurTrack Options',
+            contexts: ['browser_action']
+        });
+        
+        browser.contextMenus.create({
+            id: 'recurtrack-separator',
+            type: 'separator',
+            contexts: ['browser_action']
+        });
+        
+        browser.contextMenus.create({
+            id: 'recurtrack-open-sidebar',
+            title: 'Open Sidebar Panel',
+            contexts: ['browser_action']
+        });
+    });
+
+    // Handle context menu clicks
+    browser.contextMenus.onClicked.addListener((info, tab) => {
+        switch (info.menuItemId) {
+            case 'recurtrack-options':
+                browser.runtime.openOptionsPage();
+                break;
+            case 'recurtrack-open-sidebar':
+                browser.sidebarAction.open();
+                break;
+        }
     });
 
     console.log('RecurTrack Background: Script loaded');
