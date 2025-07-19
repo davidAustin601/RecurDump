@@ -235,6 +235,7 @@
                 
             case 'FILENAME_EXTRACTION_COMPLETED':
                 addDebugLog(`Filename extraction completed! Found ${message.database.length} entries`, 'success');
+                console.log('RecurTrack Sidebar: FILENAME_EXTRACTION_COMPLETED message received:', message);
                 filenameDatabase = message.database;
                 updateFilenameDatabaseDisplay(filenameDatabase);
                 databaseStatusText.textContent = 'Completed';
@@ -418,6 +419,8 @@
 
     // Function to update filename database display
     function updateFilenameDatabaseDisplay(database) {
+        console.log('RecurTrack Sidebar: updateFilenameDatabaseDisplay called with:', database);
+        
         if (!database || database.length === 0) {
             filenameDatabaseSection.style.display = 'none';
             return;
@@ -428,10 +431,13 @@
         
         // Update database info
         databaseEntryCount.textContent = database.length;
+        databaseStatusText.textContent = 'Ready';
         
         // Show database container
         databaseContainer.style.display = 'block';
         updateDatabaseList(database);
+        
+        console.log('RecurTrack Sidebar: Filename database section should now be visible');
     }
 
     // Function to update database list
@@ -527,8 +533,7 @@
             // Update detection history if it changed
             if (changes.detectionHistory) {
                 detectionHistory = changes.detectionHistory.newValue || [];
-                updateHistory(detectionHistory);
-                updateStatistics(detectionHistory);
+                // Note: History and statistics sections were removed from UI
             }
             
             // Update extraction state if it changed
@@ -541,6 +546,13 @@
             if (changes.currentDetection) {
                 currentDetection = changes.currentDetection.newValue;
                 updateStatus(currentDetection);
+            }
+            
+            // Update filename database if it changed
+            if (changes.filenameDatabase) {
+                filenameDatabase = changes.filenameDatabase.newValue || [];
+                updateFilenameDatabaseDisplay(filenameDatabase);
+                addDebugLog(`Filename database updated: ${filenameDatabase.length} entries`, 'info');
             }
         }
     });
