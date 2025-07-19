@@ -635,10 +635,13 @@
     async function autoSaveDatabase(model, filenameDatabase) {
         try {
             console.log('RecurTrack Background: Auto-saving database for model:', model);
+            console.log('RecurTrack Background: Database structure:', typeof filenameDatabase, Array.isArray(filenameDatabase) ? 'Array' : 'Object');
+            console.log('RecurTrack Background: Database content:', filenameDatabase);
             
             // Get settings
             const result = await browser.storage.local.get(['settings']);
             const settings = result.settings || {};
+            console.log('RecurTrack Background: Settings:', settings);
             
             if (!settings.autoSaveDatabase) {
                 console.log('RecurTrack Background: Auto-save database is disabled');
@@ -652,22 +655,23 @@
             // Convert filename database to CSV
             const csvContent = convertFilenameDatabaseToCSV(filenameDatabase, settings);
             console.log('RecurTrack Background: CSV content generated, length:', csvContent.length);
+            console.log('RecurTrack Background: CSV preview:', csvContent.substring(0, 200) + '...');
             
             // Create blob and download
             const blob = new Blob([csvContent], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             
             // Use browser.downloads API to save the file
-            await browser.downloads.download({
+            const downloadId = await browser.downloads.download({
                 url: url,
                 filename: filename,
-                saveAs: false // Save directly without asking user
+                saveAs: settings.askWhereToSave // Ask user where to save if enabled
             });
             
             // Clean up the URL
             URL.revokeObjectURL(url);
             
-            console.log('RecurTrack Background: Database auto-saved successfully:', filename);
+            console.log('RecurTrack Background: Database auto-saved successfully:', filename, 'Download ID:', downloadId);
             
             // Notify components about auto-save
             notifyComponents({
@@ -726,13 +730,25 @@
             csv += `URL${separator}Filename${separator}Extracted At\n`;
         }
         
-        // Add data rows
-        for (const [url, data] of Object.entries(filenameDatabase)) {
-            const escapedUrl = `"${url.replace(/"/g, '""')}"`;
-            const escapedFilename = data.filename ? `"${data.filename.replace(/"/g, '""')}"` : '';
-            const extractedAt = data.extractedAt || new Date().toISOString();
-            
-            csv += `${escapedUrl}${separator}${escapedFilename}${separator}${extractedAt}\n`;
+        // Handle both array format (from sidebar) and object format (from background)
+        if (Array.isArray(filenameDatabase)) {
+            // Array format: [{url: "...", filename: "...", extractedAt: "..."}, ...]
+            for (const entry of filenameDatabase) {
+                const escapedUrl = `"${entry.url.replace(/"/g, '""')}"`;
+                const escapedFilename = entry.filename ? `"${entry.filename.replace(/"/g, '""')}"` : '';
+                const extractedAt = entry.extractedAt || new Date().toISOString();
+                
+                csv += `${escapedUrl}${separator}${escapedFilename}${separator}${extractedAt}\n`;
+            }
+        } else {
+            // Object format: {url: {filename: "...", extractedAt: "..."}, ...}
+            for (const [url, data] of Object.entries(filenameDatabase)) {
+                const escapedUrl = `"${url.replace(/"/g, '""')}"`;
+                const escapedFilename = data.filename ? `"${data.filename.replace(/"/g, '""')}"` : '';
+                const extractedAt = data.extractedAt || new Date().toISOString();
+                
+                csv += `${escapedUrl}${separator}${escapedFilename}${separator}${extractedAt}\n`;
+            }
         }
         
         return csv;

@@ -21,6 +21,7 @@
         customLinkPattern: '',
         defaultDirectory: '',
         autoSaveDatabase: false,
+        askWhereToSave: false,
         filenameFormat: '[Model Name]_Database_[MONTH]-[DAY]-[YEAR].csv'
     };
 
@@ -41,6 +42,7 @@
     const defaultDirectoryInput = document.getElementById('default-directory');
     const selectDirectoryBtn = document.getElementById('select-directory');
     const autoSaveDatabaseCheckbox = document.getElementById('auto-save-database');
+    const askWhereToSaveCheckbox = document.getElementById('ask-where-to-save');
     const filenameFormatInput = document.getElementById('filename-format');
     const filenamePreviewText = document.getElementById('filename-preview-text');
     
@@ -92,13 +94,23 @@
     // Function to select directory
     async function selectDirectory() {
         try {
-            // Note: Firefox WebExtensions don't have direct file system access
-            // Files will be saved to the browser's default download location
-            showStatus('Files will be saved to your browser\'s default download location. You can change this in your browser settings.', 'info');
+            // Show a helpful dialog explaining the situation and allowing manual entry
+            const currentPath = defaultDirectoryInput.value || '';
+            const newPath = prompt(
+                'Enter the directory path where you want to save database files:\n\n' +
+                'Note: Due to browser security, files will be saved to your browser\'s default download location.\n' +
+                'To use a custom directory:\n' +
+                '1. Enable "Ask where to save each file" below\n' +
+                '2. Or change your browser\'s default download location\n\n' +
+                'This field is for your reference only.',
+                currentPath || '~/Downloads'
+            );
             
-            // For now, just show a placeholder indicating the default location
-            defaultDirectoryInput.value = 'Browser Downloads Folder';
-            updateFilenamePreview();
+            if (newPath !== null) {
+                defaultDirectoryInput.value = newPath;
+                updateFilenamePreview();
+                showStatus('Directory path updated!', 'success');
+            }
             
         } catch (error) {
             console.error('RecurTrack Options: Error selecting directory:', error);
@@ -128,6 +140,7 @@
             // Database settings
             defaultDirectoryInput.value = settings.defaultDirectory || '';
             autoSaveDatabaseCheckbox.checked = settings.autoSaveDatabase || false;
+            askWhereToSaveCheckbox.checked = settings.askWhereToSave || false;
             filenameFormatInput.value = settings.filenameFormat || defaultSettings.filenameFormat;
             updateFilenamePreview();
             
@@ -156,6 +169,7 @@
                 customLinkPattern: customLinkPatternTextarea.value.trim(),
                 defaultDirectory: defaultDirectoryInput.value.trim(),
                 autoSaveDatabase: autoSaveDatabaseCheckbox.checked,
+                askWhereToSave: askWhereToSaveCheckbox.checked,
                 filenameFormat: filenameFormatInput.value.trim() || defaultSettings.filenameFormat
             };
             
@@ -313,6 +327,7 @@
     // Database settings event listeners
     selectDirectoryBtn.addEventListener('click', selectDirectory);
     filenameFormatInput.addEventListener('input', updateFilenamePreview);
+    defaultDirectoryInput.addEventListener('input', updateFilenamePreview);
 
     // Initialize options page
     document.addEventListener('DOMContentLoaded', () => {
