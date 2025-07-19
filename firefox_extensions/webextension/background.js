@@ -134,9 +134,9 @@
     }
 
     // Function to handle link extraction process
-    async function handleExtractLinks(model, extractAllPages = false) {
+    async function handleExtractLinks(model, extractAllPages = false, extractFilenames = false) {
         try {
-            console.log('RecurTrack Background: handleExtractLinks called with model:', model, 'extractAllPages:', extractAllPages);
+            console.log('RecurTrack Background: handleExtractLinks called with model:', model, 'extractAllPages:', extractAllPages, 'extractFilenames:', extractFilenames);
             
             if (!model || model.trim() === '') {
                 throw new Error('Model name is required');
@@ -162,6 +162,7 @@
                 step: 1,
                 status: 'waiting_for_page_load',
                 extractAllPages: extractAllPages,
+                extractFilenames: extractFilenames,
                 allLinks: [], // Store all links from all pages
                 currentPage: 1,
                 totalPages: 0
@@ -365,28 +366,40 @@
                 } else {
                     console.log('RecurTrack Background: No more pages found, completing extraction');
                     
-                    // Complete the extraction
+                    // Complete the extraction, check if we need to extract filenames
+                    if (extractionState.extractFilenames) {
+                        console.log('RecurTrack Background: Starting filename extraction for all pages...');
+                        await startFilenameExtraction(extractionState.allLinks, extractionState.tabId);
+                    } else {
+                        // Complete without filename extraction
+                        extractionState.status = 'completed';
+                        extractionState.completedAt = new Date().toISOString();
+                        await browser.storage.local.set({ extractionState: extractionState });
+                        
+                        // Notify components about final completion
+                        notifyComponents({
+                            type: 'EXTRACTION_COMPLETED',
+                            data: extractionState
+                        });
+                    }
+                }
+            } else {
+                // Single page extraction, check if we need to extract filenames
+                if (extractionState.extractFilenames) {
+                    console.log('RecurTrack Background: Starting filename extraction for single page...');
+                    await startFilenameExtraction(extractionState.allLinks, extractionState.tabId);
+                } else {
+                    // Complete without filename extraction
                     extractionState.status = 'completed';
                     extractionState.completedAt = new Date().toISOString();
                     await browser.storage.local.set({ extractionState: extractionState });
                     
-                    // Notify components about final completion
+                    // Notify components about completion
                     notifyComponents({
                         type: 'EXTRACTION_COMPLETED',
                         data: extractionState
                     });
                 }
-            } else {
-                // Single page extraction, complete
-                extractionState.status = 'completed';
-                extractionState.completedAt = new Date().toISOString();
-                await browser.storage.local.set({ extractionState: extractionState });
-                
-                // Notify components about completion
-                notifyComponents({
-                    type: 'EXTRACTION_COMPLETED',
-                    data: extractionState
-                });
             }
             
         } catch (error) {
@@ -462,6 +475,13 @@
         for (let i = 0; i < links.length; i++) {
             const link = links[i];
             console.log(`RecurTrack Background: Processing link ${i + 1}/${links.length}:`, link);
+            
+            // Send progress update
+            notifyComponents({
+                type: 'FILENAME_EXTRACTION_PROGRESS',
+                current: i + 1,
+                total: links.length
+            });
             
             try {
                 // Navigate to the video page
@@ -543,6 +563,48 @@
         });
     }
 
+    // Function to start filename extraction process
+    async function startFilenameExtraction(links, tabId) {
+        try {
+            console.log('RecurTrack Background: Starting filename extraction for', links.length, 'links');
+            
+            // Notify sidebar that filename extraction is starting
+            notifyComponents({
+                type: 'FILENAME_EXTRACTION_STARTED'
+            });
+            
+            // Process links and extract filenames
+            const database = await processLinksWithFilenames(links, tabId);
+            
+            // Store the database
+            await browser.storage.local.set({ filenameDatabase: database });
+            
+            // Update extraction state
+            const result = await browser.storage.local.get(['extractionState']);
+            const extractionState = result.extractionState;
+            if (extractionState) {
+                extractionState.status = 'completed';
+                extractionState.completedAt = new Date().toISOString();
+                await browser.storage.local.set({ extractionState: extractionState });
+            }
+            
+            // Notify components about completion
+            notifyComponents({
+                type: 'FILENAME_EXTRACTION_COMPLETED',
+                database: database
+            });
+            
+            console.log('RecurTrack Background: Filename extraction completed with', database.length, 'entries');
+            
+        } catch (error) {
+            console.error('RecurTrack Background: Error in filename extraction:', error);
+            notifyComponents({
+                type: 'EXTRACTION_ERROR',
+                error: error.message
+            });
+        }
+    }
+
     // Function to check for next page and return URL
     async function checkForNextPage(tabId, model) {
         try {
@@ -613,7 +675,7 @@
                 break;
                 
             case 'EXTRACT_LINKS':
-                console.log('RecurTrack Background: Extract links requested for model:', message.model, 'extractAllPages:', message.extractAllPages);
+                console.log('RecurTrack Background: Extract links requested for model:', message.model, 'extractAllPages:', message.extractAllPages, 'extractFilenames:', message.extractFilenames);
                 
                 try {
                     // Notify sidebar about the received message
@@ -621,7 +683,8 @@
                     notifyComponents({
                         type: 'EXTRACTION_MESSAGE_RECEIVED',
                         model: message.model,
-                        extractAllPages: message.extractAllPages
+                        extractAllPages: message.extractAllPages,
+                        extractFilenames: message.extractFilenames
                     });
                     console.log('RecurTrack Background: Components notified');
                     
@@ -632,12 +695,13 @@
                             model: message.model, 
                             step: 1, 
                             status: 'starting',
-                            extractAllPages: message.extractAllPages
+                            extractAllPages: message.extractAllPages,
+                            extractFilenames: message.extractFilenames
                         }
                     });
                     
                     // Call the extraction function
-                    handleExtractLinks(message.model, message.extractAllPages);
+                    handleExtractLinks(message.model, message.extractAllPages, message.extractFilenames);
                     
                     sendResponse({ success: true, message: 'Starting link extraction...' });
                     
