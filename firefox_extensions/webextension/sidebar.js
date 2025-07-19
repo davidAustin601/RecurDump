@@ -30,6 +30,7 @@
     const debugLogs = document.getElementById('debug-logs');
     const copyDebugBtn = document.getElementById('copy-debug-btn');
     const clearDebugBtn = document.getElementById('clear-debug-btn');
+    const copyLinksBtn = document.getElementById('copy-links-btn');
 
     // State
     let currentDetection = null;
@@ -403,6 +404,24 @@
         extractionLinksList.innerHTML = linksHtml;
     }
 
+    // Function to copy all extracted links
+    async function copyAllLinks() {
+        try {
+            if (!currentExtraction || !currentExtraction.links || currentExtraction.links.length === 0) {
+                addDebugLog('No links to copy', 'error');
+                return;
+            }
+
+            const linksText = currentExtraction.links.join('\n');
+            
+            await navigator.clipboard.writeText(linksText);
+            addDebugLog(`Copied ${currentExtraction.links.length} links to clipboard!`, 'success');
+            
+        } catch (error) {
+            addDebugLog(`Failed to copy links: ${error.message}`, 'error');
+        }
+    }
+
     // Event listeners
     clearBtn.addEventListener('click', clearDetection);
     refreshBtn.addEventListener('click', refreshData);
@@ -424,6 +443,8 @@
     clearDebugBtn.addEventListener('click', () => {
         debugLogs.innerHTML = '<div class="debug-entry">Debug logs cleared...</div>';
     });
+    
+    copyLinksBtn.addEventListener('click', copyAllLinks);
 
     // Listen for messages from background script
     browser.runtime.onMessage.addListener(handleRealtimeUpdate);

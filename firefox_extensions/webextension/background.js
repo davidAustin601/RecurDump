@@ -152,6 +152,8 @@
                 active: false // Open in background
             });
             
+            console.log('RecurTrack Background: Tab created successfully:', newTab.id, newTab.url);
+            
             // Store extraction state
             const extractionState = {
                 model: model,
@@ -163,12 +165,14 @@
             
             // Store in browser storage
             await browser.storage.local.set({ extractionState: extractionState });
+            console.log('RecurTrack Background: Extraction state stored');
             
             // Notify components about extraction start
             notifyComponents({
                 type: 'EXTRACTION_STARTED',
                 data: extractionState
             });
+            console.log('RecurTrack Background: Components notified about extraction start');
             
             // Monitor the tab for page load completion
             console.log('RecurTrack Background: Starting to monitor tab:', newTab.id);
@@ -189,35 +193,49 @@
         
         // Listen for tab updates
         const tabUpdateListener = (updatedTabId, changeInfo, tab) => {
-            console.log('RecurTrack Background: Tab update detected:', updatedTabId, changeInfo.status);
+            console.log('RecurTrack Background: Tab update detected:', updatedTabId, changeInfo.status, 'for tab:', tabId);
             
-            if (updatedTabId === tabId && changeInfo.status === 'complete') {
-                console.log('RecurTrack Background: Tab loaded, checking for CloudFlare...');
+            if (updatedTabId === tabId) {
+                console.log('RecurTrack Background: This is our target tab, status:', changeInfo.status);
                 
-                // Remove the listener since we only need it once
-                browser.tabs.onUpdated.removeListener(tabUpdateListener);
-                
-                // Wait a bit for any dynamic content to load
-                setTimeout(() => {
-                    checkForCloudFlareAndProceed(tabId);
-                }, 3000);
+                if (changeInfo.status === 'complete') {
+                    console.log('RecurTrack Background: Tab loaded completely, checking for CloudFlare...');
+                    
+                    // Remove the listener since we only need it once
+                    browser.tabs.onUpdated.removeListener(tabUpdateListener);
+                    
+                    // Wait a bit for any dynamic content to load
+                    setTimeout(() => {
+                        console.log('RecurTrack Background: Timeout finished, proceeding to check CloudFlare...');
+                        checkForCloudFlareAndProceed(tabId);
+                    }, 3000);
+                } else if (changeInfo.status === 'loading') {
+                    console.log('RecurTrack Background: Tab is loading...');
+                }
             }
         };
         
         browser.tabs.onUpdated.addListener(tabUpdateListener);
+        console.log('RecurTrack Background: Tab update listener added for tab:', tabId);
     }
 
     // Function to check for CloudFlare and proceed with extraction
     async function checkForCloudFlareAndProceed(tabId) {
         try {
+            console.log('RecurTrack Background: checkForCloudFlareAndProceed called for tab:', tabId);
+            
             // Get current extraction state
             const result = await browser.storage.local.get(['extractionState']);
             const extractionState = result.extractionState;
+            
+            console.log('RecurTrack Background: Current extraction state:', extractionState);
             
             if (!extractionState || extractionState.tabId !== tabId) {
                 console.log('RecurTrack Background: No extraction state found for tab:', tabId);
                 return;
             }
+            
+            console.log('RecurTrack Background: Current CloudFlare detection:', currentDetection);
             
             // Check if there's a current CloudFlare detection
             if (currentDetection && currentDetection.url === extractionState.url) {
