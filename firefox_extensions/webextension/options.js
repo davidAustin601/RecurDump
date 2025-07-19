@@ -17,7 +17,6 @@
         csvSeparator: ',',
         csvIncludeHeaders: true,
         csvIncludeMetadata: true,
-        autoSave: false,
         debugMode: false,
         customLinkPattern: '',
         defaultDirectory: '',
@@ -36,7 +35,6 @@
     const csvSeparatorSelect = document.getElementById('csv-separator');
     const csvIncludeHeadersCheckbox = document.getElementById('csv-include-headers');
     const csvIncludeMetadataCheckbox = document.getElementById('csv-include-metadata');
-    const autoSaveCheckbox = document.getElementById('auto-save');
     const debugModeCheckbox = document.getElementById('debug-mode');
     const customLinkPatternTextarea = document.getElementById('custom-link-pattern');
     
@@ -136,7 +134,6 @@
             csvSeparatorSelect.value = settings.csvSeparator || ',';
             csvIncludeHeadersCheckbox.checked = settings.csvIncludeHeaders !== false;
             csvIncludeMetadataCheckbox.checked = settings.csvIncludeMetadata !== false;
-            autoSaveCheckbox.checked = settings.autoSave || false;
             debugModeCheckbox.checked = settings.debugMode || false;
             customLinkPatternTextarea.value = settings.customLinkPattern || '';
             
@@ -168,7 +165,6 @@
                 csvSeparator: csvSeparatorSelect.value,
                 csvIncludeHeaders: csvIncludeHeadersCheckbox.checked,
                 csvIncludeMetadata: csvIncludeMetadataCheckbox.checked,
-                autoSave: autoSaveCheckbox.checked,
                 debugMode: debugModeCheckbox.checked,
                 customLinkPattern: customLinkPatternTextarea.value.trim(),
                 defaultDirectory: defaultDirectoryInput.value.trim(),
