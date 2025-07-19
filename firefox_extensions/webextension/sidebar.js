@@ -14,10 +14,7 @@
     const detectionUrl = document.getElementById('detection-url');
     const detectionTime = document.getElementById('detection-time');
     const detectionIndicators = document.getElementById('detection-indicators');
-    const totalDetections = document.getElementById('total-detections');
-    const todayDetections = document.getElementById('today-detections');
-    const historyList = document.getElementById('history-list');
-    const refreshBtn = document.getElementById('refresh-btn');
+
     const modeInput = document.getElementById('mode-input');
     const extractLinksBtn = document.getElementById('extract-links-btn');
     const extractAllPagesCheckbox = document.getElementById('extract-all-pages-checkbox');
@@ -98,46 +95,7 @@
         });
     }
 
-    // Function to update statistics
-    function updateStatistics(history) {
-        const total = history.length;
-        const today = new Date().toDateString();
-        const todayCount = history.filter(item => {
-            const itemDate = new Date(item.detectedAt || item.timestamp).toDateString();
-            return itemDate === today;
-        }).length;
 
-        totalDetections.textContent = total;
-        todayDetections.textContent = todayCount;
-    }
-
-    // Function to update history display
-    function updateHistory(history) {
-        if (!history || history.length === 0) {
-            historyList.innerHTML = `
-                <div class="empty-state">
-                    <div class="icon">🔍</div>
-                    <div class="text">No detections yet</div>
-                </div>
-            `;
-            return;
-        }
-
-        const historyHtml = history.map(item => {
-            const time = new Date(item.detectedAt || item.timestamp);
-            const url = new URL(item.url);
-            
-            return `
-                <div class="history-item">
-                    <div class="history-domain">${url.hostname}</div>
-                    <div class="history-time">${time.toLocaleString()}</div>
-                    <div class="history-url">${item.url}</div>
-                </div>
-            `;
-        }).join('');
-
-        historyList.innerHTML = historyHtml;
-    }
 
     // Function to load current state
     async function loadCurrentState() {
@@ -150,14 +108,7 @@
             currentDetection = detectionResponse.detection;
             updateStatus(currentDetection);
 
-            // Get detection history
-            const historyResponse = await browser.runtime.sendMessage({
-                type: 'GET_DETECTION_HISTORY'
-            });
-            
-            detectionHistory = historyResponse.history || [];
-            updateHistory(detectionHistory);
-            updateStatistics(detectionHistory);
+
 
             // Get current mode
             const modeResponse = await browser.runtime.sendMessage({
@@ -196,19 +147,7 @@
         }
     }
 
-    // Function to refresh data
-    async function refreshData() {
-        // Show loading state
-        historyList.innerHTML = `
-            <div class="loading">
-                <div class="spinner"></div>
-                <div>Refreshing...</div>
-            </div>
-        `;
 
-        // Reload data
-        await loadCurrentState();
-    }
 
     // Function to handle real-time updates
     function handleRealtimeUpdate(message) {
@@ -218,11 +157,7 @@
                 updateStatus(currentDetection);
                 break;
                 
-            case 'HISTORY_UPDATED':
-                detectionHistory = message.history || [];
-                updateHistory(detectionHistory);
-                updateStatistics(detectionHistory);
-                break;
+
                 
             case 'DETECTION_CLEARED':
                 currentDetection = null;
@@ -444,7 +379,6 @@
 
     // Event listeners
     clearBtn.addEventListener('click', clearDetection);
-    refreshBtn.addEventListener('click', refreshData);
     modeInput.addEventListener('input', handleModeChange);
     extractLinksBtn.addEventListener('click', handleExtractLinks);
     copyDebugBtn.addEventListener('click', () => {
