@@ -18,7 +18,10 @@
         csvIncludeHeaders: true,
         autoSave: false,
         debugMode: false,
-        customLinkPattern: ''
+        customLinkPattern: '',
+        defaultDirectory: '',
+        autoSaveDatabase: false,
+        filenameFormat: '[Model Name]_Database_[MONTH]-[DAY]-[YEAR].csv'
     };
 
     // DOM elements
@@ -33,6 +36,13 @@
     const autoSaveCheckbox = document.getElementById('auto-save');
     const debugModeCheckbox = document.getElementById('debug-mode');
     const customLinkPatternTextarea = document.getElementById('custom-link-pattern');
+    
+    // Database settings elements
+    const defaultDirectoryInput = document.getElementById('default-directory');
+    const selectDirectoryBtn = document.getElementById('select-directory');
+    const autoSaveDatabaseCheckbox = document.getElementById('auto-save-database');
+    const filenameFormatInput = document.getElementById('filename-format');
+    const filenamePreviewText = document.getElementById('filename-preview-text');
     
     const saveSettingsBtn = document.getElementById('save-settings');
     const cancelBtn = document.getElementById('cancel');
@@ -56,6 +66,46 @@
         }, 3000);
     }
 
+    // Function to update filename preview
+    function updateFilenamePreview() {
+        const format = filenameFormatInput.value || defaultSettings.filenameFormat;
+        const now = new Date();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const year = now.getFullYear();
+        const date = `${month}-${day}-${year}`;
+        const time = now.toLocaleTimeString('en-US', { hour12: false }).replace(/:/g, '-');
+        const timestamp = now.getTime();
+        
+        let preview = format
+            .replace(/\[Model Name\]/g, 'example_model')
+            .replace(/\[MONTH\]/g, month)
+            .replace(/\[DAY\]/g, day)
+            .replace(/\[YEAR\]/g, year)
+            .replace(/\[DATE\]/g, date)
+            .replace(/\[TIME\]/g, time)
+            .replace(/\[TIMESTAMP\]/g, timestamp);
+        
+        filenamePreviewText.textContent = preview;
+    }
+
+    // Function to select directory
+    async function selectDirectory() {
+        try {
+            // Note: Firefox WebExtensions don't have direct file system access
+            // Files will be saved to the browser's default download location
+            showStatus('Files will be saved to your browser\'s default download location. You can change this in your browser settings.', 'info');
+            
+            // For now, just show a placeholder indicating the default location
+            defaultDirectoryInput.value = 'Browser Downloads Folder';
+            updateFilenamePreview();
+            
+        } catch (error) {
+            console.error('RecurTrack Options: Error selecting directory:', error);
+            showStatus('Error setting directory: ' + error.message, 'error');
+        }
+    }
+
     // Function to load settings from storage
     async function loadSettings() {
         try {
@@ -74,6 +124,12 @@
             autoSaveCheckbox.checked = settings.autoSave || false;
             debugModeCheckbox.checked = settings.debugMode || false;
             customLinkPatternTextarea.value = settings.customLinkPattern || '';
+            
+            // Database settings
+            defaultDirectoryInput.value = settings.defaultDirectory || '';
+            autoSaveDatabaseCheckbox.checked = settings.autoSaveDatabase || false;
+            filenameFormatInput.value = settings.filenameFormat || defaultSettings.filenameFormat;
+            updateFilenamePreview();
             
             console.log('RecurTrack Options: Settings loaded successfully');
             
@@ -97,7 +153,10 @@
                 csvIncludeHeaders: csvIncludeHeadersCheckbox.checked,
                 autoSave: autoSaveCheckbox.checked,
                 debugMode: debugModeCheckbox.checked,
-                customLinkPattern: customLinkPatternTextarea.value.trim()
+                customLinkPattern: customLinkPatternTextarea.value.trim(),
+                defaultDirectory: defaultDirectoryInput.value.trim(),
+                autoSaveDatabase: autoSaveDatabaseCheckbox.checked,
+                filenameFormat: filenameFormatInput.value.trim() || defaultSettings.filenameFormat
             };
             
             await browser.storage.local.set({ settings: settings });
@@ -250,6 +309,10 @@
     resetSettingsBtn.addEventListener('click', resetSettings);
     clearAllDataBtn.addEventListener('click', clearAllData);
     exportAllDataBtn.addEventListener('click', exportAllData);
+    
+    // Database settings event listeners
+    selectDirectoryBtn.addEventListener('click', selectDirectory);
+    filenameFormatInput.addEventListener('input', updateFilenamePreview);
 
     // Initialize options page
     document.addEventListener('DOMContentLoaded', () => {

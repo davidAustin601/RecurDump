@@ -10,7 +10,8 @@
     "tabs",
     "<all_urls>",
     "notifications",
-    "contextMenus"
+    "contextMenus",
+    "downloads"
   ],
   
   "browser_action": {

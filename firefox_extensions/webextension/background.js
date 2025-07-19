@@ -586,6 +586,9 @@
                 extractionState.status = 'completed';
                 extractionState.completedAt = new Date().toISOString();
                 await browser.storage.local.set({ extractionState: extractionState });
+                
+                // Auto-save database if enabled
+                await autoSaveDatabase(extractionState.model, database);
             }
             
             // Notify components about completion
@@ -626,6 +629,113 @@
             console.error('RecurTrack Background: Error checking for next page:', error);
             return null;
         }
+    }
+
+    // Function to auto-save database to file
+    async function autoSaveDatabase(model, filenameDatabase) {
+        try {
+            console.log('RecurTrack Background: Auto-saving database for model:', model);
+            
+            // Get settings
+            const result = await browser.storage.local.get(['settings']);
+            const settings = result.settings || {};
+            
+            if (!settings.autoSaveDatabase) {
+                console.log('RecurTrack Background: Auto-save database is disabled');
+                return;
+            }
+            
+            // Generate filename using the format from settings
+            const filename = generateDatabaseFilename(model, settings.filenameFormat);
+            console.log('RecurTrack Background: Generated filename:', filename);
+            
+            // Convert filename database to CSV
+            const csvContent = convertFilenameDatabaseToCSV(filenameDatabase, settings);
+            console.log('RecurTrack Background: CSV content generated, length:', csvContent.length);
+            
+            // Create blob and download
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            
+            // Use browser.downloads API to save the file
+            await browser.downloads.download({
+                url: url,
+                filename: filename,
+                saveAs: false // Save directly without asking user
+            });
+            
+            // Clean up the URL
+            URL.revokeObjectURL(url);
+            
+            console.log('RecurTrack Background: Database auto-saved successfully:', filename);
+            
+            // Notify components about auto-save
+            notifyComponents({
+                type: 'DATABASE_AUTO_SAVED',
+                filename: filename,
+                model: model
+            });
+            
+        } catch (error) {
+            console.error('RecurTrack Background: Error auto-saving database:', error);
+            
+            // Notify components about auto-save error
+            notifyComponents({
+                type: 'DATABASE_AUTO_SAVE_ERROR',
+                error: error.message
+            });
+        }
+    }
+
+    // Function to generate database filename
+    function generateDatabaseFilename(model, format) {
+        const now = new Date();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const year = now.getFullYear();
+        const date = `${month}-${day}-${year}`;
+        const time = now.toLocaleTimeString('en-US', { hour12: false }).replace(/:/g, '-');
+        const timestamp = now.getTime();
+        
+        let filename = format
+            .replace(/\[Model Name\]/g, model || 'unknown_model')
+            .replace(/\[MONTH\]/g, month)
+            .replace(/\[DAY\]/g, day)
+            .replace(/\[YEAR\]/g, year)
+            .replace(/\[DATE\]/g, date)
+            .replace(/\[TIME\]/g, time)
+            .replace(/\[TIMESTAMP\]/g, timestamp);
+        
+        // Ensure it ends with .csv
+        if (!filename.toLowerCase().endsWith('.csv')) {
+            filename += '.csv';
+        }
+        
+        return filename;
+    }
+
+    // Function to convert filename database to CSV
+    function convertFilenameDatabaseToCSV(filenameDatabase, settings) {
+        const separator = settings.csvSeparator || ',';
+        const includeHeaders = settings.csvIncludeHeaders !== false;
+        
+        let csv = '';
+        
+        // Add headers if enabled
+        if (includeHeaders) {
+            csv += `URL${separator}Filename${separator}Extracted At\n`;
+        }
+        
+        // Add data rows
+        for (const [url, data] of Object.entries(filenameDatabase)) {
+            const escapedUrl = `"${url.replace(/"/g, '""')}"`;
+            const escapedFilename = data.filename ? `"${data.filename.replace(/"/g, '""')}"` : '';
+            const extractedAt = data.extractedAt || new Date().toISOString();
+            
+            csv += `${escapedUrl}${separator}${escapedFilename}${separator}${extractedAt}\n`;
+        }
+        
+        return csv;
     }
 
     // Message handling

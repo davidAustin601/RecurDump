@@ -241,6 +241,14 @@
                 updateFilenameDatabaseDisplay(filenameDatabase);
                 databaseStatusText.textContent = 'Completed';
                 break;
+                
+            case 'DATABASE_AUTO_SAVED':
+                addDebugLog(`Database auto-saved: ${message.filename}`, 'success');
+                break;
+                
+            case 'DATABASE_AUTO_SAVE_ERROR':
+                addDebugLog(`Auto-save failed: ${message.error}`, 'error');
+                break;
         }
     }
 

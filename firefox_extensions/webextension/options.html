@@ -328,6 +328,45 @@
         </div>
     </div>
 
+    <!-- Database Settings -->
+    <div class="section">
+        <h2>💾 Database Settings</h2>
+        
+        <div class="form-group">
+            <label for="default-directory" class="form-label">Default Save Directory</label>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="text" id="default-directory" class="form-input" placeholder="Enter directory path manually..." readonly>
+                <button id="select-directory" class="btn btn-secondary" style="white-space: nowrap;">Set Path...</button>
+            </div>
+            <small>Directory where CSV database files will be automatically saved (files will be saved to browser's default download location)</small>
+        </div>
+
+        <div class="form-group">
+            <label for="auto-save-database" class="form-label">Auto-Save Database</label>
+            <div class="checkbox-container">
+                <input type="checkbox" id="auto-save-database" class="form-checkbox">
+                <label for="auto-save-database" class="form-checkbox-label">
+                    Automatically save database to selected directory
+                </label>
+            </div>
+            <small>Save CSV database files automatically after each extraction</small>
+        </div>
+
+        <div class="form-group">
+            <label for="filename-format" class="form-label">Database Filename Format</label>
+            <input type="text" id="filename-format" class="form-input" placeholder="[Model Name]_Database_[MONTH]-[DAY]-[YEAR].csv">
+            <small>Format for automatically saved database files. Available placeholders: [Model Name], [MONTH], [DAY], [YEAR], [DATE], [TIME], [TIMESTAMP]</small>
+        </div>
+
+        <div class="form-group">
+            <label for="filename-preview" class="form-label">Filename Preview</label>
+            <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; border: 1px solid #dee2e6; font-family: monospace; font-size: 12px;">
+                <span id="filename-preview-text">example_model_Database_12-25-2024.csv</span>
+            </div>
+            <small>Preview of how your database files will be named</small>
+        </div>
+    </div>
+
     <!-- Advanced Settings -->
     <div class="section">
         <h2>🔧 Advanced Settings</h2>
