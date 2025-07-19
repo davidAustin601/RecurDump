@@ -21,6 +21,7 @@
     const modeInput = document.getElementById('mode-input');
     const extractLinksBtn = document.getElementById('extract-links-btn');
     const testBackgroundBtn = document.getElementById('test-background-btn');
+    const extractAllPagesCheckbox = document.getElementById('extract-all-pages-checkbox');
     const extractionResultsSection = document.getElementById('extraction-results-section');
     const extractionModel = document.getElementById('extraction-model');
     const extractionStatusText = document.getElementById('extraction-status-text');
@@ -31,6 +32,7 @@
     const copyDebugBtn = document.getElementById('copy-debug-btn');
     const clearDebugBtn = document.getElementById('clear-debug-btn');
     const copyLinksBtn = document.getElementById('copy-links-btn');
+    const clearLinksBtn = document.getElementById('clear-links-btn');
 
     // State
     let currentDetection = null;
@@ -246,8 +248,14 @@
                 updateExtractionDisplay(currentExtraction);
                 break;
                 
+            case 'EXTRACTION_PAGE_COMPLETED':
+                addDebugLog(`Page ${message.data.currentPage} completed! Found ${message.data.links ? message.data.links.length : 0} total links so far`, 'success');
+                currentExtraction = message.data;
+                updateExtractionDisplay(currentExtraction);
+                break;
+                
             case 'EXTRACTION_COMPLETED':
-                addDebugLog(`Extraction completed! Found ${message.data.links ? message.data.links.length : 0} links`, 'success');
+                addDebugLog(`Extraction completed! Found ${message.data.links ? message.data.links.length : 0} total links from all pages`, 'success');
                 currentExtraction = message.data;
                 updateExtractionDisplay(currentExtraction);
                 break;
@@ -301,16 +309,19 @@
             extractLinksBtn.disabled = true;
             extractLinksBtn.textContent = '⏳ EXTRACTING...';
             
-            // Get current model
+            // Get current model and checkbox state
             const model = modeInput.value.trim() || 'default';
+            const extractAllPages = extractAllPagesCheckbox.checked;
             
             addDebugLog(`Starting extraction for model: ${model}`, 'info');
+            addDebugLog(`Extract all pages: ${extractAllPages ? 'Yes' : 'No'}`, 'info');
             
             // Send message to background script to start extraction
             try {
                 const response = await browser.runtime.sendMessage({
                     type: 'EXTRACT_LINKS',
-                    model: model
+                    model: model,
+                    extractAllPages: extractAllPages
                 });
                 
                 addDebugLog('Extraction request sent to background script', 'success');
@@ -325,7 +336,7 @@
                 addDebugLog(`Message sending failed: ${error.message}`, 'error');
                 throw error;
             }
-            console.log('RecurTrack Sidebar: Extract links initiated for model:', model);
+            console.log('RecurTrack Sidebar: Extract links initiated for model:', model, 'extractAllPages:', extractAllPages);
             
         } catch (error) {
             addDebugLog(`Error: ${error.message}`, 'error');
@@ -384,6 +395,11 @@
             case 'error':
                 return { text: '❌ Extraction failed', class: 'extraction-status-error' };
             default:
+                // Handle page extraction status (e.g., "extracting_page_2")
+                if (status && status.startsWith('extracting_page_')) {
+                    const pageNum = status.split('_')[2];
+                    return { text: `📄 Extracting page ${pageNum}...`, class: 'extraction-status-extracting' };
+                }
                 return { text: 'Unknown status', class: '' };
         }
     }
@@ -422,6 +438,25 @@
         }
     }
 
+    // Function to clear extracted links
+    async function clearExtractedLinks() {
+        try {
+            // Clear the extraction state from storage
+            await browser.storage.local.remove(['extractionState']);
+            
+            // Clear the current extraction state
+            currentExtraction = null;
+            
+            // Hide the extraction results section
+            extractionResultsSection.style.display = 'none';
+            
+            addDebugLog('Extracted links cleared!', 'success');
+            
+        } catch (error) {
+            addDebugLog(`Failed to clear links: ${error.message}`, 'error');
+        }
+    }
+
     // Event listeners
     clearBtn.addEventListener('click', clearDetection);
     refreshBtn.addEventListener('click', refreshData);
@@ -445,6 +480,7 @@
     });
     
     copyLinksBtn.addEventListener('click', copyAllLinks);
+    clearLinksBtn.addEventListener('click', clearExtractedLinks);
 
     // Listen for messages from background script
     browser.runtime.onMessage.addListener(handleRealtimeUpdate);

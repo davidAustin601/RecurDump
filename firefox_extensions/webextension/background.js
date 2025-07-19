@@ -134,9 +134,9 @@
     }
 
     // Function to handle link extraction process
-    async function handleExtractLinks(model) {
+    async function handleExtractLinks(model, extractAllPages = false) {
         try {
-            console.log('RecurTrack Background: handleExtractLinks called with model:', model);
+            console.log('RecurTrack Background: handleExtractLinks called with model:', model, 'extractAllPages:', extractAllPages);
             
             if (!model || model.trim() === '') {
                 throw new Error('Model name is required');
@@ -160,7 +160,11 @@
                 tabId: newTab.id,
                 url: modelUrl,
                 step: 1,
-                status: 'waiting_for_page_load'
+                status: 'waiting_for_page_load',
+                extractAllPages: extractAllPages,
+                allLinks: [], // Store all links from all pages
+                currentPage: 1,
+                totalPages: 0
             };
             
             // Store in browser storage
@@ -304,75 +308,8 @@
             // Wait a bit more for dynamic content to fully load
             await new Promise(resolve => setTimeout(resolve, 2000));
             
-            // Execute content script to extract links
-            console.log('RecurTrack Background: Executing content script for model:', extractionState.model);
-            
-            const extractedLinks = await browser.tabs.executeScript(tabId, {
-                code: `
-                    // Step 2: Extract links that match the pattern
-                    console.log('RecurTrack Content: Starting link extraction...');
-                    
-                    const targetLinks = [];
-                    const allLinks = document.querySelectorAll('a[href]');
-                    const modelName = '${extractionState.model}';
-                    
-                    console.log('RecurTrack Content: Model name:', modelName);
-                    console.log('RecurTrack Content: Total links found:', allLinks.length);
-                    
-                    allLinks.forEach((link, index) => {
-                        const href = link.href;
-                        console.log('RecurTrack Content: Link', index, ':', href);
-                        
-                        if (href && href.includes('/' + modelName + '/video/')) {
-                            console.log('RecurTrack Content: MATCH FOUND:', href);
-                            targetLinks.push(href);
-                        }
-                    });
-                    
-                    console.log('RecurTrack Content: Total matching links:', targetLinks.length);
-                    console.log('RecurTrack Content: Matching links:', targetLinks);
-                    
-                    // Return the found links
-                    targetLinks;
-                `
-            });
-            
-            const links = extractedLinks[0] || [];
-            console.log('RecurTrack Background: Found', links.length, 'links:', links);
-            
-            // If no links found, try alternative method
-            if (links.length === 0) {
-                console.log('RecurTrack Background: No links found with executeScript, trying alternative method...');
-                
-                // Try sending a message to the content script
-                try {
-                    const response = await browser.tabs.sendMessage(tabId, {
-                        type: 'EXTRACT_LINKS_REQUEST',
-                        model: extractionState.model
-                    });
-                    
-                    if (response && response.links) {
-                        console.log('RecurTrack Background: Alternative method found', response.links.length, 'links');
-                        links.push(...response.links);
-                    }
-                } catch (error) {
-                    console.error('RecurTrack Background: Alternative method failed:', error);
-                }
-            }
-            
-            // Update extraction state with results
-            extractionState.step = 3;
-            extractionState.status = 'completed';
-            extractionState.links = links;
-            extractionState.completedAt = new Date().toISOString();
-            
-            await browser.storage.local.set({ extractionState: extractionState });
-            
-            // Notify components about completion
-            notifyComponents({
-                type: 'EXTRACTION_COMPLETED',
-                data: extractionState
-            });
+            // Use the new multi-page extraction logic
+            await handleMultiPageExtraction(tabId, extractionState);
             
         } catch (error) {
             console.error('RecurTrack Background: Error in Step 2:', error);
@@ -380,6 +317,149 @@
                 type: 'EXTRACTION_ERROR',
                 error: error.message
             });
+        }
+    }
+
+    // Function to handle multi-page extraction
+    async function handleMultiPageExtraction(tabId, extractionState) {
+        try {
+            console.log('RecurTrack Background: Starting multi-page extraction for model:', extractionState.model);
+            
+            // First, extract links from current page
+            const currentPageLinks = await extractLinksFromCurrentPage(tabId, extractionState.model);
+            console.log('RecurTrack Background: Found', currentPageLinks.length, 'links on current page');
+            
+            // Add current page links to all links
+            extractionState.allLinks.push(...currentPageLinks);
+            
+            // Update extraction state
+            extractionState.links = extractionState.allLinks;
+            extractionState.status = `extracting_page_${extractionState.currentPage}`;
+            await browser.storage.local.set({ extractionState: extractionState });
+            
+            // Notify components about current page completion
+            notifyComponents({
+                type: 'EXTRACTION_PAGE_COMPLETED',
+                data: extractionState
+            });
+            
+            // Check if we should continue to next page
+            if (extractionState.extractAllPages) {
+                const nextPageUrl = await checkForNextPage(tabId, extractionState.model);
+                
+                if (nextPageUrl) {
+                    console.log('RecurTrack Background: Found next page, navigating to:', nextPageUrl);
+                    
+                    // Navigate to next page
+                    await browser.tabs.update(tabId, { url: nextPageUrl });
+                    
+                    // Update extraction state
+                    extractionState.currentPage++;
+                    extractionState.url = nextPageUrl;
+                    extractionState.status = 'waiting_for_page_load';
+                    await browser.storage.local.set({ extractionState: extractionState });
+                    
+                    // Monitor the tab for the new page load
+                    monitorTabForExtraction(tabId);
+                    
+                } else {
+                    console.log('RecurTrack Background: No more pages found, completing extraction');
+                    
+                    // Complete the extraction
+                    extractionState.status = 'completed';
+                    extractionState.completedAt = new Date().toISOString();
+                    await browser.storage.local.set({ extractionState: extractionState });
+                    
+                    // Notify components about final completion
+                    notifyComponents({
+                        type: 'EXTRACTION_COMPLETED',
+                        data: extractionState
+                    });
+                }
+            } else {
+                // Single page extraction, complete
+                extractionState.status = 'completed';
+                extractionState.completedAt = new Date().toISOString();
+                await browser.storage.local.set({ extractionState: extractionState });
+                
+                // Notify components about completion
+                notifyComponents({
+                    type: 'EXTRACTION_COMPLETED',
+                    data: extractionState
+                });
+            }
+            
+        } catch (error) {
+            console.error('RecurTrack Background: Error in multi-page extraction:', error);
+            notifyComponents({
+                type: 'EXTRACTION_ERROR',
+                error: error.message
+            });
+        }
+    }
+
+    // Function to extract links from current page
+    async function extractLinksFromCurrentPage(tabId, model) {
+        try {
+            const extractedLinks = await browser.tabs.executeScript(tabId, {
+                code: `
+                    // Extract links that match the pattern
+                    console.log('RecurTrack Content: Starting link extraction for model:', '${model}');
+                    
+                    const targetLinks = [];
+                    const allLinks = document.querySelectorAll('a[href]');
+                    
+                    console.log('RecurTrack Content: Total links found:', allLinks.length);
+                    
+                    allLinks.forEach((link, index) => {
+                        const href = link.href;
+                        
+                        if (href && href.includes('/' + '${model}' + '/video/')) {
+                            console.log('RecurTrack Content: MATCH FOUND:', href);
+                            targetLinks.push(href);
+                        }
+                    });
+                    
+                    console.log('RecurTrack Content: Total matching links before deduplication:', targetLinks.length);
+                    
+                    // Remove duplicates using Set
+                    const uniqueLinks = [...new Set(targetLinks)];
+                    
+                    console.log('RecurTrack Content: Total matching links after deduplication:', uniqueLinks.length);
+                    
+                    // Return the deduplicated links
+                    uniqueLinks;
+                `
+            });
+            
+            return extractedLinks[0] || [];
+            
+        } catch (error) {
+            console.error('RecurTrack Background: Error extracting links from current page:', error);
+            return [];
+        }
+    }
+
+    // Function to check for next page and return URL
+    async function checkForNextPage(tabId, model) {
+        try {
+            // Use message passing to content script instead of executeScript
+            const response = await browser.tabs.sendMessage(tabId, {
+                type: 'CHECK_NEXT_PAGE',
+                model: model
+            });
+            
+            if (response && response.nextPageUrl) {
+                console.log('RecurTrack Background: Next page URL:', response.nextPageUrl);
+                return response.nextPageUrl;
+            } else {
+                console.log('RecurTrack Background: No next page available');
+                return null;
+            }
+            
+        } catch (error) {
+            console.error('RecurTrack Background: Error checking for next page:', error);
+            return null;
         }
     }
 
@@ -430,25 +510,31 @@
                 break;
                 
             case 'EXTRACT_LINKS':
-                console.log('RecurTrack Background: Extract links requested for model:', message.model);
+                console.log('RecurTrack Background: Extract links requested for model:', message.model, 'extractAllPages:', message.extractAllPages);
                 
                 try {
                     // Notify sidebar about the received message
                     console.log('RecurTrack Background: About to notify components...');
                     notifyComponents({
                         type: 'EXTRACTION_MESSAGE_RECEIVED',
-                        model: message.model
+                        model: message.model,
+                        extractAllPages: message.extractAllPages
                     });
                     console.log('RecurTrack Background: Components notified');
                     
                     // Send a simple test message to sidebar
                     notifyComponents({
                         type: 'EXTRACTION_STARTED',
-                        data: { model: message.model, step: 1, status: 'starting' }
+                        data: { 
+                            model: message.model, 
+                            step: 1, 
+                            status: 'starting',
+                            extractAllPages: message.extractAllPages
+                        }
                     });
                     
                     // Call the extraction function
-                    handleExtractLinks(message.model);
+                    handleExtractLinks(message.model, message.extractAllPages);
                     
                     sendResponse({ success: true, message: 'Starting link extraction...' });
                     

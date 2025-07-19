@@ -368,6 +368,27 @@
             transform: none;
         }
 
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .form-checkbox {
+            width: 16px;
+            height: 16px;
+            accent-color: #007bff;
+            cursor: pointer;
+        }
+
+        .form-checkbox-label {
+            font-size: 13px;
+            color: #495057;
+            cursor: pointer;
+            user-select: none;
+        }
+
         /* Extraction Results Styles */
         .extraction-info {
             background: #f8f9fa;
@@ -562,6 +583,15 @@
             </div>
             
             <div class="form-group">
+                <div class="checkbox-container">
+                    <input type="checkbox" id="extract-all-pages-checkbox" class="form-checkbox">
+                    <label for="extract-all-pages-checkbox" class="form-checkbox-label">
+                        Extract from all pages
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group">
                 <button id="extract-links-btn" class="form-button">
                     🔗 EXTRACT LINKS
                 </button>
@@ -602,6 +632,7 @@
                 <div class="detail-label" style="margin-bottom: 8px;">
                     Extracted Links
                     <button id="copy-links-btn" class="debug-copy-btn" style="margin-left: 8px;">Copy All</button>
+                    <button id="clear-links-btn" class="debug-clear-btn" style="margin-left: 4px;">Clear</button>
                 </div>
                 <div id="extraction-links-list" class="extraction-links-list">
                     <!-- Links will be populated here -->

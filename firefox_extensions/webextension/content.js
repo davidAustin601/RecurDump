@@ -141,6 +141,44 @@
                 sendResponse({ links: targetLinks });
                 return true; // Keep message channel open
             }
+            
+            if (message.type === 'CHECK_NEXT_PAGE') {
+                console.log('RecurTrack Content: Checking for next page...');
+                
+                const pageLinks = document.querySelectorAll('a.page-link[data-page]');
+                console.log('RecurTrack Content: Found', pageLinks.length, 'page links');
+                
+                let maxPage = 1;
+                
+                for (let i = 0; i < pageLinks.length; i++) {
+                    const pageNum = parseInt(pageLinks[i].getAttribute('data-page'));
+                    if (pageNum > maxPage) {
+                        maxPage = pageNum;
+                    }
+                }
+                
+                console.log('RecurTrack Content: Max page found:', maxPage);
+                
+                // Get current page from URL
+                const currentUrl = window.location.href;
+                const currentPageMatch = currentUrl.match(/\/page\/(\d+)/);
+                const currentPage = currentPageMatch ? parseInt(currentPageMatch[1]) : 1;
+                
+                console.log('RecurTrack Content: Current page:', currentPage);
+                
+                // Check if there's a next page
+                if (currentPage < maxPage) {
+                    const nextPage = currentPage + 1;
+                    const nextPageUrl = 'https://www.recu.me/performer/' + message.model + '/page/' + nextPage;
+                    console.log('RecurTrack Content: Next page URL:', nextPageUrl);
+                    sendResponse({ nextPageUrl: nextPageUrl });
+                } else {
+                    console.log('RecurTrack Content: No next page available');
+                    sendResponse({ nextPageUrl: null });
+                }
+                
+                return true; // Keep message channel open
+            }
         });
     }
 
