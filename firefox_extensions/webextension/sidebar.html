@@ -592,6 +592,15 @@
             </div>
             
             <div class="form-group">
+                <div class="checkbox-container">
+                    <input type="checkbox" id="extract-filenames-checkbox" class="form-checkbox">
+                    <label for="extract-filenames-checkbox" class="form-checkbox-label">
+                        Extract filenames
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group">
                 <button id="extract-links-btn" class="form-button">
                     🔗 EXTRACT LINKS
                 </button>
@@ -630,6 +639,36 @@
                 </div>
                 <div id="extraction-links-list" class="extraction-links-list">
                     <!-- Links will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filename Database Section -->
+    <div id="filename-database-section" class="section" style="display: none;">
+        <div class="section-header">
+            <span>📁 Filename Database</span>
+            <button id="copy-database-btn" class="debug-copy-btn" style="margin-left: 8px;">Copy CSV</button>
+            <button id="clear-database-btn" class="debug-clear-btn" style="margin-left: 4px;">Clear</button>
+        </div>
+        <div class="section-content">
+            <div id="database-info" class="extraction-info">
+                <div class="extraction-details">
+                    <div class="detail-row">
+                        <div class="detail-label">Total Entries</div>
+                        <div id="database-entry-count" class="detail-value">0</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Status</div>
+                        <div id="database-status-text" class="detail-value">Ready</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="database-container" class="extraction-links-container" style="display: none;">
+                <div class="detail-label" style="margin-bottom: 8px;">URL → Filename Database</div>
+                <div id="database-list" class="extraction-links-list">
+                    <!-- Database entries will be populated here -->
                 </div>
             </div>
         </div>

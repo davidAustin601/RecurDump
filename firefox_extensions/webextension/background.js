@@ -440,6 +440,109 @@
         }
     }
 
+    // Function to extract filename from a video page
+    async function extractFilenameFromPage(tabId) {
+        try {
+            const response = await browser.tabs.sendMessage(tabId, {
+                type: 'EXTRACT_FILENAME'
+            });
+            
+            return response ? response.filename : null;
+            
+        } catch (error) {
+            console.error('RecurTrack Background: Error extracting filename:', error);
+            return null;
+        }
+    }
+
+    // Function to process links and extract filenames
+    async function processLinksWithFilenames(links, tabId) {
+        const processedData = [];
+        
+        for (let i = 0; i < links.length; i++) {
+            const link = links[i];
+            console.log(`RecurTrack Background: Processing link ${i + 1}/${links.length}:`, link);
+            
+            try {
+                // Navigate to the video page
+                await browser.tabs.update(tabId, { url: link });
+                
+                // Wait for page to load
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                
+                // Check for CloudFlare challenge
+                const cloudFlareResult = await checkForCloudFlareChallenge(tabId);
+                if (cloudFlareResult.hasChallenge) {
+                    console.log('RecurTrack Background: CloudFlare challenge detected, waiting for user completion...');
+                    
+                    // Wait for user to complete CloudFlare challenge
+                    await waitForCloudFlareCompletion(tabId);
+                }
+                
+                // Extract filename
+                const filename = await extractFilenameFromPage(tabId);
+                console.log('RecurTrack Background: Extracted filename:', filename);
+                
+                processedData.push({
+                    url: link,
+                    filename: filename || 'Unknown'
+                });
+                
+            } catch (error) {
+                console.error('RecurTrack Background: Error processing link:', link, error);
+                processedData.push({
+                    url: link,
+                    filename: 'Error'
+                });
+            }
+        }
+        
+        return processedData;
+    }
+
+    // Function to check for CloudFlare challenge
+    async function checkForCloudFlareChallenge(tabId) {
+        try {
+            const response = await browser.tabs.sendMessage(tabId, {
+                type: 'CHECK_CLOUDFLARE'
+            });
+            
+            return response || { hasChallenge: false };
+            
+        } catch (error) {
+            console.error('RecurTrack Background: Error checking CloudFlare:', error);
+            return { hasChallenge: false };
+        }
+    }
+
+    // Function to wait for CloudFlare completion
+    async function waitForCloudFlareCompletion(tabId) {
+        return new Promise((resolve) => {
+            const checkInterval = setInterval(async () => {
+                try {
+                    const response = await browser.tabs.sendMessage(tabId, {
+                        type: 'CHECK_CLOUDFLARE'
+                    });
+                    
+                    if (!response || !response.hasChallenge) {
+                        clearInterval(checkInterval);
+                        console.log('RecurTrack Background: CloudFlare challenge completed');
+                        resolve();
+                    }
+                } catch (error) {
+                    console.error('RecurTrack Background: Error checking CloudFlare status:', error);
+                }
+            }, 2000); // Check every 2 seconds
+            
+            // Timeout after 5 minutes
+            setTimeout(() => {
+                clearInterval(checkInterval);
+                console.log('RecurTrack Background: CloudFlare wait timeout');
+                resolve();
+            }, 300000);
+        });
+    }
+
     // Function to check for next page and return URL
     async function checkForNextPage(tabId, model) {
         try {

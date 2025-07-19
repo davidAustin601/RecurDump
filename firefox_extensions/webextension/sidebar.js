@@ -18,6 +18,7 @@
     const modeInput = document.getElementById('mode-input');
     const extractLinksBtn = document.getElementById('extract-links-btn');
     const extractAllPagesCheckbox = document.getElementById('extract-all-pages-checkbox');
+    const extractFilenamesCheckbox = document.getElementById('extract-filenames-checkbox');
     const extractionResultsSection = document.getElementById('extraction-results-section');
     const extractionModel = document.getElementById('extraction-model');
     const extractionStatusText = document.getElementById('extraction-status-text');
@@ -29,11 +30,19 @@
     const clearDebugBtn = document.getElementById('clear-debug-btn');
     const copyLinksBtn = document.getElementById('copy-links-btn');
     const clearLinksBtn = document.getElementById('clear-links-btn');
+    const filenameDatabaseSection = document.getElementById('filename-database-section');
+    const databaseEntryCount = document.getElementById('database-entry-count');
+    const databaseStatusText = document.getElementById('database-status-text');
+    const databaseContainer = document.getElementById('database-container');
+    const databaseList = document.getElementById('database-list');
+    const copyDatabaseBtn = document.getElementById('copy-database-btn');
+    const clearDatabaseBtn = document.getElementById('clear-database-btn');
 
     // State
     let currentDetection = null;
     let detectionHistory = [];
     let currentExtraction = null;
+    let filenameDatabase = [];
 
     // Debug logging function
     function addDebugLog(message, type = 'info') {
@@ -126,6 +135,13 @@
                 updateExtractionDisplay(currentExtraction);
             }
 
+            // Get current filename database
+            const databaseResponse = await browser.storage.local.get(['filenameDatabase']);
+            if (databaseResponse.filenameDatabase) {
+                filenameDatabase = databaseResponse.filenameDatabase;
+                updateFilenameDatabaseDisplay(filenameDatabase);
+            }
+
         } catch (error) {
             console.error('RecurTrack Sidebar: Error loading state:', error);
             statusText.textContent = '❌ Error loading state';
@@ -202,6 +218,26 @@
                 
             case 'EXTRACTION_MESSAGE_RECEIVED':
                 addDebugLog(`Background script received extraction request for: ${message.model}`, 'info');
+                if (message.extractFilenames) {
+                    addDebugLog('Filename extraction requested', 'info');
+                }
+                break;
+                
+            case 'FILENAME_EXTRACTION_STARTED':
+                addDebugLog('Starting filename extraction from video pages...', 'info');
+                databaseStatusText.textContent = 'Extracting filenames...';
+                break;
+                
+            case 'FILENAME_EXTRACTION_PROGRESS':
+                addDebugLog(`Filename extraction progress: ${message.current}/${message.total}`, 'info');
+                databaseStatusText.textContent = `Processing ${message.current}/${message.total}`;
+                break;
+                
+            case 'FILENAME_EXTRACTION_COMPLETED':
+                addDebugLog(`Filename extraction completed! Found ${message.database.length} entries`, 'success');
+                filenameDatabase = message.database;
+                updateFilenameDatabaseDisplay(filenameDatabase);
+                databaseStatusText.textContent = 'Completed';
                 break;
         }
     }
@@ -232,16 +268,19 @@
             // Get current model and checkbox state
             const model = modeInput.value.trim() || 'default';
             const extractAllPages = extractAllPagesCheckbox.checked;
+            const extractFilenames = extractFilenamesCheckbox.checked;
             
             addDebugLog(`Starting extraction for model: ${model}`, 'info');
             addDebugLog(`Extract all pages: ${extractAllPages ? 'Yes' : 'No'}`, 'info');
+            addDebugLog(`Extract filenames: ${extractFilenames ? 'Yes' : 'No'}`, 'info');
             
             // Send message to background script to start extraction
             try {
                 const response = await browser.runtime.sendMessage({
                     type: 'EXTRACT_LINKS',
                     model: model,
-                    extractAllPages: extractAllPages
+                    extractAllPages: extractAllPages,
+                    extractFilenames: extractFilenames
                 });
                 
                 addDebugLog('Extraction request sent to background script', 'success');
@@ -377,6 +416,83 @@
         }
     }
 
+    // Function to update filename database display
+    function updateFilenameDatabaseDisplay(database) {
+        if (!database || database.length === 0) {
+            filenameDatabaseSection.style.display = 'none';
+            return;
+        }
+
+        // Show the filename database section
+        filenameDatabaseSection.style.display = 'block';
+        
+        // Update database info
+        databaseEntryCount.textContent = database.length;
+        
+        // Show database container
+        databaseContainer.style.display = 'block';
+        updateDatabaseList(database);
+    }
+
+    // Function to update database list
+    function updateDatabaseList(database) {
+        if (!database || database.length === 0) {
+            databaseList.innerHTML = '<div class="extraction-link-item">No database entries found</div>';
+            return;
+        }
+
+        const databaseHtml = database.map(entry => `
+            <div class="extraction-link-item" title="${entry.url}">
+                <div style="font-weight: bold; margin-bottom: 4px;">${entry.filename}</div>
+                <div style="font-size: 10px; color: #666;">${entry.url}</div>
+            </div>
+        `).join('');
+
+        databaseList.innerHTML = databaseHtml;
+    }
+
+    // Function to copy database as CSV
+    async function copyDatabaseAsCSV() {
+        try {
+            if (!filenameDatabase || filenameDatabase.length === 0) {
+                addDebugLog('No database to copy', 'error');
+                return;
+            }
+
+            // Create CSV content
+            const csvHeader = 'URL,Filename\n';
+            const csvRows = filenameDatabase.map(entry => 
+                `"${entry.url}","${entry.filename}"`
+            ).join('\n');
+            const csvContent = csvHeader + csvRows;
+            
+            await navigator.clipboard.writeText(csvContent);
+            addDebugLog(`Copied ${filenameDatabase.length} database entries as CSV!`, 'success');
+            
+        } catch (error) {
+            addDebugLog(`Failed to copy database: ${error.message}`, 'error');
+        }
+    }
+
+    // Function to clear filename database
+    async function clearFilenameDatabase() {
+        try {
+            // Clear the database state from storage
+            await browser.storage.local.remove(['filenameDatabase']);
+            
+            // Clear the current database state
+            filenameDatabase = [];
+            
+            // Hide the database section
+            filenameDatabaseSection.style.display = 'none';
+            
+            addDebugLog('Filename database cleared!', 'success');
+            
+        } catch (error) {
+            addDebugLog(`Failed to clear database: ${error.message}`, 'error');
+        }
+    }
+
     // Event listeners
     clearBtn.addEventListener('click', clearDetection);
     modeInput.addEventListener('input', handleModeChange);
@@ -399,6 +515,8 @@
     
     copyLinksBtn.addEventListener('click', copyAllLinks);
     clearLinksBtn.addEventListener('click', clearExtractedLinks);
+    copyDatabaseBtn.addEventListener('click', copyDatabaseAsCSV);
+    clearDatabaseBtn.addEventListener('click', clearFilenameDatabase);
 
     // Listen for messages from background script
     browser.runtime.onMessage.addListener(handleRealtimeUpdate);
