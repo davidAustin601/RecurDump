@@ -15,25 +15,55 @@
     function handleCloudFlareDetection(data) {
         console.log('RecurTrack Background: CloudFlare check detected', data);
         
-        // Update current detection
-        currentDetection = data;
-        
-        // Add to history
-        detectionHistory.push({
-            ...data,
-            detectedAt: new Date().toISOString()
-        });
-        
-        // Keep only last 10 detections in memory
-        if (detectionHistory.length > 10) {
-            detectionHistory = detectionHistory.slice(-10);
+        // Validate the detection data
+        if (!data || typeof data !== 'object') {
+            console.error('RecurTrack Background: Invalid CloudFlare detection data received');
+            return;
         }
         
-        // Store in browser storage
-        browser.storage.local.set({
-            currentDetection: currentDetection,
-            detectionHistory: detectionHistory
-        }).catch(error => {
+        // Check if this is a duplicate detection for the same URL
+        if (currentDetection && currentDetection.url === data.url) {
+            console.log('RecurTrack Background: Duplicate CloudFlare detection for same URL, updating...');
+        }
+        
+        // Update current detection
+        currentDetection = {
+            ...data,
+            detectedAt: new Date().toISOString(),
+            indicators: data.indicators || {}
+        };
+        
+        // Add to history (avoid duplicates)
+        const isDuplicate = detectionHistory.some(detection => 
+            detection.url === data.url && 
+            Math.abs(new Date(detection.detectedAt) - new Date()) < 60000 // Within 1 minute
+        );
+        
+        if (!isDuplicate) {
+            detectionHistory.push({
+                ...currentDetection,
+                detectedAt: new Date().toISOString()
+            });
+            
+            // Keep only last 20 detections in memory (increased from 10)
+            if (detectionHistory.length > 20) {
+                detectionHistory = detectionHistory.slice(-20);
+            }
+        }
+        
+        // Store in browser storage with error handling
+        Promise.all([
+            browser.storage.local.set({
+                currentDetection: currentDetection,
+                detectionHistory: detectionHistory
+            }),
+            browser.storage.local.set({
+                lastCloudFlareDetection: {
+                    ...currentDetection,
+                    timestamp: Date.now()
+                }
+            })
+        ]).catch(error => {
             console.error('RecurTrack Background: Error saving to storage:', error);
         });
         
@@ -56,6 +86,14 @@
 
         // Check if this detection is related to a pending extraction
         checkForPendingExtraction();
+        
+        // Log detailed detection information for debugging
+        console.log('RecurTrack Background: CloudFlare detection details:', {
+            url: data.url,
+            title: data.title,
+            indicators: data.indicators,
+            timestamp: data.timestamp
+        });
     }
 
     // Function to update the browser action badge
@@ -90,22 +128,36 @@
 
     // Function to clear current detection
     function clearDetection() {
-        currentDetection = null;
-        updateBadge(false);
+        console.log('RecurTrack Background: Clearing CloudFlare detection');
         
-        browser.storage.local.set({
-            currentDetection: null
-        }).catch(error => {
-            console.error('RecurTrack Background: Error clearing detection:', error);
-        });
-
-        // Notify all components about the cleared detection
-        notifyComponents({
-            type: 'DETECTION_CLEARED'
-        });
-
-        // Check if we need to proceed with any pending extraction
-        checkForPendingExtraction();
+        const wasDetectionActive = currentDetection !== null;
+        currentDetection = null;
+        
+        if (wasDetectionActive) {
+            updateBadge(false);
+            
+            // Store cleared state in browser storage
+            Promise.all([
+                browser.storage.local.set({
+                    currentDetection: null
+                }),
+                browser.storage.local.set({
+                    lastCloudFlareCleared: {
+                        timestamp: Date.now(),
+                        clearedAt: new Date().toISOString()
+                    }
+                })
+            ]).catch(error => {
+                console.error('RecurTrack Background: Error clearing detection from storage:', error);
+            });
+            
+            // Notify components about the cleared detection
+            notifyComponents({
+                type: 'DETECTION_CLEARED'
+            });
+            
+            console.log('RecurTrack Background: CloudFlare detection cleared successfully');
+        }
     }
 
     // Function to get current tab info
@@ -165,7 +217,21 @@
                 extractFilenames: extractFilenames,
                 allLinks: [], // Store all links from all pages
                 currentPage: 1,
-                totalPages: 0
+                totalPages: 0,
+                // Progress tracking fields
+                progress: {
+                    currentStep: 1,
+                    totalSteps: extractFilenames ? 3 : 2, // 2 for links only, 3 for links + filenames
+                    stepName: 'Opening page',
+                    currentPage: 1,
+                    totalPages: 0,
+                    linksFound: 0,
+                    filenamesProcessed: 0,
+                    totalFilenames: 0,
+                    percentage: 0
+                },
+                startedAt: new Date().toISOString(),
+                estimatedTimeRemaining: null
             };
             
             // Store in browser storage
@@ -298,7 +364,15 @@
             
             extractionState.step = 2;
             extractionState.status = 'extracting_links';
-            await browser.storage.local.set({ extractionState: extractionState });
+            
+            // Update progress to Step 2
+            await updateExtractionProgress(extractionState, {
+                progress: {
+                    currentStep: 2,
+                    stepName: 'Extracting links from pages',
+                    currentPage: 1
+                }
+            });
             
             // Notify components
             notifyComponents({
@@ -336,7 +410,15 @@
             // Update extraction state
             extractionState.links = extractionState.allLinks;
             extractionState.status = `extracting_page_${extractionState.currentPage}`;
-            await browser.storage.local.set({ extractionState: extractionState });
+            
+            // Update progress with current page completion
+            await updateExtractionProgress(extractionState, {
+                progress: {
+                    currentPage: extractionState.currentPage,
+                    linksFound: extractionState.allLinks.length,
+                    totalFilenames: extractionState.allLinks.length
+                }
+            });
             
             // Notify components about current page completion
             notifyComponents({
@@ -358,7 +440,14 @@
                     extractionState.currentPage++;
                     extractionState.url = nextPageUrl;
                     extractionState.status = 'waiting_for_page_load';
-                    await browser.storage.local.set({ extractionState: extractionState });
+                    
+                    // Update progress for next page
+                    await updateExtractionProgress(extractionState, {
+                        progress: {
+                            currentPage: extractionState.currentPage,
+                            stepName: `Extracting links from page ${extractionState.currentPage}`
+                        }
+                    });
                     
                     // Monitor the tab for the new page load
                     monitorTabForExtraction(tabId);
@@ -374,13 +463,24 @@
                         // Complete without filename extraction
                         extractionState.status = 'completed';
                         extractionState.completedAt = new Date().toISOString();
-                        await browser.storage.local.set({ extractionState: extractionState });
+                        
+                        // Update progress to completion
+                        await updateExtractionProgress(extractionState, {
+                            progress: {
+                                currentStep: 2,
+                                stepName: 'Extraction completed',
+                                percentage: 100
+                            }
+                        });
                         
                         // Notify components about final completion
                         notifyComponents({
                             type: 'EXTRACTION_COMPLETED',
                             data: extractionState
                         });
+                        
+                        // Check if auto-clear is enabled and clear data if needed
+                        await checkAndAutoClear();
                     }
                 }
             } else {
@@ -392,13 +492,24 @@
                     // Complete without filename extraction
                     extractionState.status = 'completed';
                     extractionState.completedAt = new Date().toISOString();
-                    await browser.storage.local.set({ extractionState: extractionState });
+                    
+                    // Update progress to completion
+                    await updateExtractionProgress(extractionState, {
+                        progress: {
+                            currentStep: 2,
+                            stepName: 'Extraction completed',
+                            percentage: 100
+                        }
+                    });
                     
                     // Notify components about completion
                     notifyComponents({
                         type: 'EXTRACTION_COMPLETED',
                         data: extractionState
                     });
+                    
+                    // Check if auto-clear is enabled and clear data if needed
+                    await checkAndAutoClear();
                 }
             }
             
@@ -413,44 +524,31 @@
 
     // Function to extract links from current page
     async function extractLinksFromCurrentPage(tabId, model) {
-        try {
-            const extractedLinks = await browser.tabs.executeScript(tabId, {
-                code: `
-                    // Extract links that match the pattern
-                    console.log('RecurTrack Content: Starting link extraction for model:', '${model}');
-                    
-                    const targetLinks = [];
-                    const allLinks = document.querySelectorAll('a[href]');
-                    
-                    console.log('RecurTrack Content: Total links found:', allLinks.length);
-                    
-                    allLinks.forEach((link, index) => {
-                        const href = link.href;
-                        
-                        if (href && href.includes('/' + '${model}' + '/video/')) {
-                            console.log('RecurTrack Content: MATCH FOUND:', href);
-                            targetLinks.push(href);
-                        }
-                    });
-                    
-                    console.log('RecurTrack Content: Total matching links before deduplication:', targetLinks.length);
-                    
-                    // Remove duplicates using Set
-                    const uniqueLinks = [...new Set(targetLinks)];
-                    
-                    console.log('RecurTrack Content: Total matching links after deduplication:', uniqueLinks.length);
-                    
-                    // Return the deduplicated links
-                    uniqueLinks;
-                `
-            });
-            
-            return extractedLinks[0] || [];
-            
-        } catch (error) {
-            console.error('RecurTrack Background: Error extracting links from current page:', error);
-            return [];
-        }
+        // Retry link extraction up to 3 times
+        return await retryAsync(async (attempt) => {
+            try {
+                const extractedLinks = await browser.tabs.executeScript(tabId, {
+                    code: `
+                        // Extract links that match the pattern
+                        console.log('RecurTrack Content: Starting link extraction for model:', '${model}');
+                        const targetLinks = [];
+                        const allLinks = document.querySelectorAll('a[href]');
+                        allLinks.forEach(link => {
+                            const href = link.href;
+                            if (href && href.includes('/' + '${model}' + '/video/')) {
+                                targetLinks.push(href);
+                            }
+                        });
+                        targetLinks;
+                    `
+                });
+                if (!extractedLinks || !Array.isArray(extractedLinks[0])) throw new Error('Link extraction failed');
+                return extractedLinks[0];
+            } catch (err) {
+                if (attempt >= 3) throw err;
+                throw err;
+            }
+        }, 3, 2000);
     }
 
     // Function to extract filename from a video page
@@ -468,98 +566,174 @@
         }
     }
 
-    // Function to process links and extract filenames
+    // Helper: retry async function with delay and max attempts
+    async function retryAsync(fn, maxAttempts = 3, delayMs = 1500) {
+        let lastError;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return await fn(attempt);
+            } catch (err) {
+                lastError = err;
+                if (attempt < maxAttempts) {
+                    await new Promise(res => setTimeout(res, delayMs));
+                }
+            }
+        }
+        throw lastError;
+    }
+
     async function processLinksWithFilenames(links, tabId) {
         const processedData = [];
-        
+        // Get current extraction state for progress tracking
+        const result = await browser.storage.local.get(['extractionState']);
+        const extractionState = result.extractionState;
         for (let i = 0; i < links.length; i++) {
             const link = links[i];
             console.log(`RecurTrack Background: Processing link ${i + 1}/${links.length}:`, link);
-            
-            // Send progress update
-            notifyComponents({
-                type: 'FILENAME_EXTRACTION_PROGRESS',
-                current: i + 1,
-                total: links.length
-            });
-            
-            try {
-                // Navigate to the video page
-                await browser.tabs.update(tabId, { url: link });
-                
-                // Wait for page to load
-                await new Promise(resolve => setTimeout(resolve, 3000));
-                
-                // Check for CloudFlare challenge
-                const cloudFlareResult = await checkForCloudFlareChallenge(tabId);
-                if (cloudFlareResult.hasChallenge) {
-                    console.log('RecurTrack Background: CloudFlare challenge detected, waiting for user completion...');
-                    
-                    // Wait for user to complete CloudFlare challenge
-                    await waitForCloudFlareCompletion(tabId);
-                }
-                
-                // Extract filename
-                const filename = await extractFilenameFromPage(tabId);
-                console.log('RecurTrack Background: Extracted filename:', filename);
-                
-                processedData.push({
-                    url: link,
-                    filename: filename || 'Unknown'
-                });
-                
-            } catch (error) {
-                console.error('RecurTrack Background: Error processing link:', link, error);
-                processedData.push({
-                    url: link,
-                    filename: 'Error'
+            // Update progress for filename extraction
+            if (extractionState) {
+                await updateExtractionProgress(extractionState, {
+                    progress: {
+                        filenamesProcessed: i + 1,
+                        stepName: `Extracting filename ${i + 1}/${links.length}`
+                    }
                 });
             }
+            let filename = 'Unknown';
+            let errorOccurred = false;
+            try {
+                // Retry navigation and extraction up to 3 times
+                await retryAsync(async (attempt) => {
+                    await browser.tabs.update(tabId, { url: link });
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    try {
+                        const cloudFlareResult = await checkForCloudFlareChallenge(tabId);
+                        if (cloudFlareResult.hasChallenge) {
+                            if (extractionState) {
+                                await updateExtractionProgress(extractionState, {
+                                    progress: {
+                                        stepName: `Waiting for CloudFlare completion (${i + 1}/${links.length})`
+                                    }
+                                });
+                            }
+                            await waitForCloudFlareCompletion(tabId);
+                        }
+                    } catch (cfError) {
+                        // CloudFlare timeout or error
+                        notifyComponents({
+                            type: 'EXTRACTION_ERROR',
+                            error: cfError.message || 'CloudFlare challenge wait timed out.'
+                        });
+                        throw cfError;
+                    }
+                    filename = await extractFilenameFromPage(tabId);
+                    if (!filename) throw new Error('Filename extraction failed');
+                }, 3, 2000);
+                console.log('RecurTrack Background: Extracted filename:', filename);
+                processedData.push({ url: link, filename });
+            } catch (error) {
+                errorOccurred = true;
+                console.error('RecurTrack Background: Error processing link:', link, error);
+                processedData.push({ url: link, filename: 'Error' });
+            }
         }
-        
         return processedData;
     }
 
     // Function to check for CloudFlare challenge
     async function checkForCloudFlareChallenge(tabId) {
         try {
+            console.log('RecurTrack Background: Checking for CloudFlare challenge in tab:', tabId);
+            
+            // First check if we have a current detection for this tab
+            if (currentDetection) {
+                const tab = await browser.tabs.get(tabId);
+                if (tab.url === currentDetection.url) {
+                    console.log('RecurTrack Background: Current CloudFlare detection matches tab URL');
+                    return { hasChallenge: true, detection: currentDetection };
+                }
+            }
+            
+            // Send message to content script to check for CloudFlare
             const response = await browser.tabs.sendMessage(tabId, {
                 type: 'CHECK_CLOUDFLARE'
             });
             
-            return response || { hasChallenge: false };
+            if (response && response.hasChallenge) {
+                console.log('RecurTrack Background: CloudFlare challenge confirmed by content script');
+                return { hasChallenge: true, detection: response };
+            }
+            
+            return { hasChallenge: false };
             
         } catch (error) {
             console.error('RecurTrack Background: Error checking CloudFlare:', error);
+            
+            // If we can't communicate with the content script, check if we have a stored detection
+            if (currentDetection) {
+                console.log('RecurTrack Background: Using stored CloudFlare detection as fallback');
+                return { hasChallenge: true, detection: currentDetection };
+            }
+            
             return { hasChallenge: false };
         }
     }
 
-    // Function to wait for CloudFlare completion
+    // Function to wait for CloudFlare completion with improved logic
     async function waitForCloudFlareCompletion(tabId) {
-        return new Promise((resolve) => {
-            const checkInterval = setInterval(async () => {
+        return new Promise((resolve, reject) => {
+            let checkCount = 0;
+            const maxChecks = 150; // 5 minutes at 2-second intervals
+            const checkInterval = 2000; // 2 seconds
+            let timedOut = false;
+            
+            console.log('RecurTrack Background: Starting CloudFlare completion monitoring for tab:', tabId);
+            
+            const checkIntervalId = setInterval(async () => {
+                checkCount++;
                 try {
+                    const tab = await browser.tabs.get(tabId);
+                    if (!tab || !tab.url) {
+                        clearInterval(checkIntervalId);
+                        resolve();
+                        return;
+                    }
+                    if (currentDetection && tab.url !== currentDetection.url) {
+                        clearInterval(checkIntervalId);
+                        clearDetection();
+                        resolve();
+                        return;
+                    }
                     const response = await browser.tabs.sendMessage(tabId, {
                         type: 'CHECK_CLOUDFLARE'
                     });
-                    
                     if (!response || !response.hasChallenge) {
-                        clearInterval(checkInterval);
-                        console.log('RecurTrack Background: CloudFlare challenge completed');
+                        clearInterval(checkIntervalId);
+                        clearDetection();
                         resolve();
+                        return;
                     }
                 } catch (error) {
-                    console.error('RecurTrack Background: Error checking CloudFlare status:', error);
+                    if (!currentDetection) {
+                        clearInterval(checkIntervalId);
+                        resolve();
+                        return;
+                    }
                 }
-            }, 2000); // Check every 2 seconds
-            
-            // Timeout after 5 minutes
+                if (checkCount >= maxChecks) {
+                    timedOut = true;
+                    clearInterval(checkIntervalId);
+                    clearDetection();
+                    reject(new Error('CloudFlare challenge wait timed out. Please complete the challenge manually and try again.'));
+                }
+            }, checkInterval);
             setTimeout(() => {
-                clearInterval(checkInterval);
-                console.log('RecurTrack Background: CloudFlare wait timeout');
-                resolve();
-            }, 300000);
+                if (!timedOut) {
+                    clearInterval(checkIntervalId);
+                    clearDetection();
+                    reject(new Error('CloudFlare challenge wait timed out. Please complete the challenge manually and try again.'));
+                }
+            }, 300000); // 5 minutes
         });
     }
 
@@ -567,6 +741,22 @@
     async function startFilenameExtraction(links, tabId) {
         try {
             console.log('RecurTrack Background: Starting filename extraction for', links.length, 'links');
+            
+            // Get current extraction state
+            const result = await browser.storage.local.get(['extractionState']);
+            const extractionState = result.extractionState;
+            
+            if (extractionState) {
+                // Update progress to Step 3
+                await updateExtractionProgress(extractionState, {
+                    progress: {
+                        currentStep: 3,
+                        stepName: 'Extracting filenames from video pages',
+                        totalFilenames: links.length,
+                        filenamesProcessed: 0
+                    }
+                });
+            }
             
             // Notify sidebar that filename extraction is starting
             notifyComponents({
@@ -580,12 +770,19 @@
             await browser.storage.local.set({ filenameDatabase: database });
             
             // Update extraction state
-            const result = await browser.storage.local.get(['extractionState']);
-            const extractionState = result.extractionState;
             if (extractionState) {
                 extractionState.status = 'completed';
                 extractionState.completedAt = new Date().toISOString();
-                await browser.storage.local.set({ extractionState: extractionState });
+                
+                // Update progress to completion
+                await updateExtractionProgress(extractionState, {
+                    progress: {
+                        currentStep: 3,
+                        stepName: 'Filename extraction completed',
+                        filenamesProcessed: database.length,
+                        percentage: 100
+                    }
+                });
                 
                 // Auto-save database if enabled
                 await autoSaveDatabase(extractionState.model, database);
@@ -598,6 +795,9 @@
             });
             
             console.log('RecurTrack Background: Filename extraction completed with', database.length, 'entries');
+            
+            // Check if auto-clear is enabled and clear data if needed
+            await checkAndAutoClear();
             
         } catch (error) {
             console.error('RecurTrack Background: Error in filename extraction:', error);
@@ -764,6 +964,121 @@
         return csv;
     }
 
+    // Function to clear sidebar data (extraction results, database, debug logs)
+    async function clearSidebarData() {
+        try {
+            console.log('RecurTrack Background: Clearing sidebar data');
+            
+            // Clear extraction state
+            await browser.storage.local.remove(['extractionState']);
+            
+            // Clear filename database
+            await browser.storage.local.remove(['filenameDatabase']);
+            
+            // Clear debug logs
+            await browser.storage.local.remove(['debugLogs']);
+            
+            // Notify components to clear their displays
+            notifyComponents({
+                type: 'CLEAR_SIDEBAR_DATA'
+            });
+            
+            console.log('RecurTrack Background: Sidebar data cleared successfully');
+            
+        } catch (error) {
+            console.error('RecurTrack Background: Error clearing sidebar data:', error);
+        }
+    }
+
+    // Function to check if auto-clear is enabled and clear data if needed
+    async function checkAndAutoClear() {
+        try {
+            const result = await browser.storage.local.get(['settings']);
+            const settings = result.settings || {};
+            
+            if (settings.autoClearAfterExtraction) {
+                console.log('RecurTrack Background: Auto-clear enabled, clearing sidebar data');
+                
+                // Wait a bit to let the user see the completion message
+                setTimeout(async () => {
+                    await clearSidebarData();
+                }, 3000); // Wait 3 seconds before clearing
+            } else {
+                console.log('RecurTrack Background: Auto-clear disabled, keeping sidebar data');
+            }
+        } catch (error) {
+            console.error('RecurTrack Background: Error checking auto-clear setting:', error);
+        }
+    }
+
+    // Function to update extraction progress and notify components
+    async function updateExtractionProgress(extractionState, updates) {
+        try {
+            // Update the progress object with new values
+            if (updates.progress) {
+                extractionState.progress = { ...extractionState.progress, ...updates.progress };
+            }
+            
+            // Calculate overall percentage
+            let percentage = 0;
+            const progress = extractionState.progress;
+            
+            if (progress.totalSteps === 2) {
+                // Links only extraction
+                if (progress.currentStep === 1) {
+                    percentage = Math.min(50, (progress.currentPage / Math.max(progress.totalPages, 1)) * 50);
+                } else if (progress.currentStep === 2) {
+                    percentage = 50 + (progress.linksFound / Math.max(progress.totalFilenames, 1)) * 50;
+                }
+            } else if (progress.totalSteps === 3) {
+                // Links + filenames extraction
+                if (progress.currentStep === 1) {
+                    percentage = Math.min(33, (progress.currentPage / Math.max(progress.totalPages, 1)) * 33);
+                } else if (progress.currentStep === 2) {
+                    percentage = 33 + (progress.linksFound / Math.max(progress.totalFilenames, 1)) * 33;
+                } else if (progress.currentStep === 3) {
+                    percentage = 66 + (progress.filenamesProcessed / Math.max(progress.totalFilenames, 1)) * 34;
+                }
+            }
+            
+            progress.percentage = Math.round(percentage);
+            
+            // Calculate estimated time remaining
+            if (extractionState.startedAt) {
+                const elapsed = Date.now() - new Date(extractionState.startedAt).getTime();
+                if (progress.percentage > 0) {
+                    const totalEstimated = (elapsed / progress.percentage) * 100;
+                    const remaining = totalEstimated - elapsed;
+                    extractionState.estimatedTimeRemaining = Math.max(0, Math.round(remaining / 1000)); // in seconds
+                }
+            }
+            
+            // Update extraction state in storage
+            await browser.storage.local.set({ extractionState: extractionState });
+            
+            // Send progress update to components
+            notifyComponents({
+                type: 'EXTRACTION_PROGRESS_UPDATE',
+                data: extractionState
+            });
+            
+            console.log('RecurTrack Background: Progress updated:', {
+                step: progress.currentStep,
+                stepName: progress.stepName,
+                percentage: progress.percentage,
+                currentPage: progress.currentPage,
+                totalPages: progress.totalPages,
+                linksFound: progress.linksFound,
+                filenamesProcessed: progress.filenamesProcessed,
+                totalFilenames: progress.totalFilenames,
+                estimatedTimeRemaining: extractionState.estimatedTimeRemaining
+            });
+            
+        } catch (error) {
+            console.error('RecurTrack Background: Error updating progress:', error);
+        }
+    }
+
     // Message handling
     browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.log('RecurTrack Background: Received message', message);
@@ -855,6 +1170,35 @@
         return true; // Keep message channel open for async response
     });
 
+    // Function to periodically check for CloudFlare challenges
+    function startPeriodicCloudFlareCheck() {
+        // Check every 30 seconds for CloudFlare challenges on active tabs
+        setInterval(async () => {
+            try {
+                const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+                
+                for (const tab of tabs) {
+                    if (tab.url && tab.url.startsWith('http')) {
+                        try {
+                            const response = await browser.tabs.sendMessage(tab.id, {
+                                type: 'CHECK_CLOUDFLARE'
+                            });
+                            
+                            if (response && response.hasChallenge && !currentDetection) {
+                                console.log('RecurTrack Background: Periodic check found CloudFlare challenge on tab:', tab.id);
+                                handleCloudFlareDetection(response);
+                            }
+                        } catch (error) {
+                            // Content script not available, ignore
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('RecurTrack Background: Error in periodic CloudFlare check:', error);
+            }
+        }, 30000); // Check every 30 seconds
+    }
+
     // Tab update handling (to clear detection when user navigates away)
     browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         if (changeInfo.status === 'complete' && currentDetection) {
@@ -862,7 +1206,32 @@
             if (tab.url !== currentDetection.url) {
                 console.log('RecurTrack Background: User navigated away, clearing detection');
                 clearDetection();
+            } else {
+                // Same URL, but page completed loading - re-check for CloudFlare
+                setTimeout(async () => {
+                    try {
+                        const response = await browser.tabs.sendMessage(tabId, {
+                            type: 'CHECK_CLOUDFLARE'
+                        });
+                        
+                        if (response && response.hasChallenge && !currentDetection) {
+                            console.log('RecurTrack Background: Re-check found CloudFlare challenge after page load');
+                            handleCloudFlareDetection(response);
+                        }
+                    } catch (error) {
+                        // Content script not available, ignore
+                    }
+                }, 2000);
             }
+        }
+    });
+
+    // Tab removal handling
+    browser.tabs.onRemoved.addListener((tabId) => {
+        if (currentDetection) {
+            // Check if the removed tab was the one with the CloudFlare challenge
+            console.log('RecurTrack Background: Tab removed, checking if CloudFlare detection should be cleared');
+            // We'll let the periodic check handle this since we can't get tab info after removal
         }
     });
 
@@ -887,6 +1256,9 @@
         }).catch(error => {
             console.error('RecurTrack Background: Error loading saved state:', error);
         });
+        
+        // Start periodic CloudFlare checking
+        startPeriodicCloudFlareCheck();
     });
 
     // Extension installation
@@ -920,6 +1292,9 @@
             title: 'Open Sidebar Panel',
             contexts: ['browser_action']
         });
+        
+        // Start periodic CloudFlare checking
+        startPeriodicCloudFlareCheck();
     });
 
     // Handle context menu clicks
@@ -935,5 +1310,8 @@
     });
 
     console.log('RecurTrack Background: Script loaded');
+    
+    // Start periodic CloudFlare checking immediately
+    startPeriodicCloudFlareCheck();
 
 })(); 

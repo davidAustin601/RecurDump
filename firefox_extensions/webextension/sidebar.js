@@ -37,6 +37,26 @@
     const clearDatabaseBtn = document.getElementById('clear-database-btn');
     const clearAllBtn = document.getElementById('clear-all-btn');
 
+    // Progress tracking elements
+    const progressSection = document.getElementById('progress-section');
+    const progressPercentage = document.getElementById('progress-percentage');
+    const progressBarFill = document.getElementById('progress-bar-fill');
+    const currentStepName = document.getElementById('current-step-name');
+    const stepProgress = document.getElementById('step-progress');
+    const currentPageInfo = document.getElementById('current-page-info');
+    const filenamesProcessedInfo = document.getElementById('filenames-processed-info');
+    const timeRemainingInfo = document.getElementById('time-remaining-info');
+
+    // Error message elements
+    const errorMessageSection = document.getElementById('error-message-section');
+    const errorMessageTitle = document.getElementById('error-message-title');
+    const errorMessageBody = document.getElementById('error-message-body');
+    const errorMessageActions = document.getElementById('error-message-actions');
+
+    // Error log elements
+    const errorLogSection = document.getElementById('error-log-section');
+    const errorLogList = document.getElementById('error-log-list');
+
     // State
     let currentDetection = null;
     let detectionHistory = [];
@@ -103,6 +123,70 @@
         });
     }
 
+    // Function to show a user-friendly error message
+    function showErrorMessage(title, body, actions = []) {
+        errorMessageTitle.textContent = title;
+        errorMessageBody.innerHTML = body;
+        errorMessageActions.innerHTML = '';
+        errorMessageSection.style.display = 'block';
+        // Hide other main sections for clarity
+        extractionResultsSection.style.display = 'none';
+        progressSection.style.display = 'none';
+        filenameDatabaseSection.style.display = 'none';
+        // Add action buttons if provided
+        actions.forEach(action => {
+            const btn = document.createElement('button');
+            btn.textContent = action.label;
+            btn.onclick = action.onClick;
+            errorMessageActions.appendChild(btn);
+        });
+    }
+
+    // Function to hide the error message
+    function hideErrorMessage() {
+        errorMessageSection.style.display = 'none';
+        errorMessageActions.innerHTML = '';
+    }
+
+    // Function to add error to persistent log
+    async function addErrorToLog(errorMsg) {
+        let errorLog = [];
+        try {
+            const result = await browser.storage.local.get(['errorLog']);
+            errorLog = result.errorLog || [];
+        } catch {}
+        errorLog.push({
+            message: errorMsg,
+            timestamp: new Date().toISOString()
+        });
+        // Keep only last 20 errors
+        if (errorLog.length > 20) errorLog = errorLog.slice(-20);
+        await browser.storage.local.set({ errorLog });
+        updateErrorLogDisplay(errorLog);
+    }
+
+    // Function to update error log display
+    async function updateErrorLogDisplay(log) {
+        if (!log) {
+            const result = await browser.storage.local.get(['errorLog']);
+            log = result.errorLog || [];
+        }
+        errorLogList.innerHTML = '';
+        if (log.length === 0) {
+            errorLogList.innerHTML = '<div class="error-log-empty">No recent errors.</div>';
+        } else {
+            log.slice().reverse().forEach(entry => {
+                const div = document.createElement('div');
+                div.className = 'error-log-entry';
+                div.innerHTML = `<span class='error-log-time'>${new Date(entry.timestamp).toLocaleString()}</span> <span class='error-log-msg'>${entry.message}</span>`;
+                errorLogList.appendChild(div);
+            });
+        }
+        errorLogSection.style.display = log.length > 0 ? 'block' : 'none';
+    }
+
+    // Show error log on load
+    updateErrorLogDisplay();
 
 
     // Function to load current state
@@ -211,8 +295,44 @@
                 
             case 'EXTRACTION_ERROR':
                 addDebugLog(`Extraction failed: ${message.error}`, 'error');
+                addErrorToLog(message.error || 'Unknown extraction error');
                 currentExtraction = { status: 'error', error: message.error };
                 updateExtractionDisplay(currentExtraction);
+                // Show user-friendly error message with retry/reset actions
+                showErrorMessage(
+                    'Extraction Failed',
+                    `<div>${message.error ? message.error : 'An unknown error occurred during extraction.'}</div>
+                    <div style='margin-top:8px; color:#6b7280; font-size:12px;'>You can try again, or reset the extension state if the problem persists.</div>`,
+                    [
+                        {
+                            label: 'Retry',
+                            onClick: () => {
+                                hideErrorMessage();
+                                // Trigger retry (send message to background)
+                                if (currentExtraction && currentExtraction.model) {
+                                    browser.runtime.sendMessage({
+                                        type: 'EXTRACT_LINKS',
+                                        model: currentExtraction.model,
+                                        extractAllPages: currentExtraction.extractAllPages || false,
+                                        extractFilenames: currentExtraction.extractFilenames || false
+                                    });
+                                }
+                            }
+                        },
+                        {
+                            label: 'Reset',
+                            onClick: () => {
+                                hideErrorMessage();
+                                // Clear all data and reset state
+                                browser.runtime.sendMessage({ type: 'CLEAR_DETECTION' });
+                                browser.storage.local.remove(['extractionState', 'filenameDatabase', 'debugLogs']);
+                                updateExtractionDisplay(null);
+                                updateFilenameDatabaseDisplay([]);
+                                debugLogs.innerHTML = '';
+                            }
+                        }
+                    ]
+                );
                 break;
                 
             case 'EXTRACTION_MESSAGE_RECEIVED':
@@ -246,6 +366,24 @@
                 
             case 'DATABASE_AUTO_SAVE_ERROR':
                 addDebugLog(`Auto-save failed: ${message.error}`, 'error');
+                break;
+                
+            case 'EXTRACTION_PROGRESS_UPDATE':
+                addDebugLog(`Progress update: ${message.data.progress.percentage}% - ${message.data.progress.stepName}`, 'info');
+                currentExtraction = message.data;
+                updateExtractionDisplay(currentExtraction);
+                break;
+                
+            case 'CLEAR_SIDEBAR_DATA':
+                addDebugLog('Auto-clearing sidebar data after successful extraction', 'info');
+                // Clear all data displays
+                currentExtraction = null;
+                filenameDatabase = [];
+                updateExtractionDisplay(null);
+                updateFilenameDatabaseDisplay([]);
+                // Clear debug logs
+                debugLogs.innerHTML = '';
+                addDebugLog('Sidebar data cleared automatically', 'info');
                 break;
         }
     }
@@ -325,30 +463,81 @@
     function updateExtractionDisplay(extractionData) {
         if (!extractionData) {
             extractionResultsSection.style.display = 'none';
+            progressSection.style.display = 'none';
             return;
         }
-
-        // Show the extraction results section
+        
+        // Show the section
         extractionResultsSection.style.display = 'block';
         
-        // Update extraction info
+        // Update basic info
         extractionModel.textContent = extractionData.model || 'Unknown';
+        extractionStatusText.textContent = getStatusText(extractionData.status);
+        extractionLinkCount.textContent = extractionData.links ? extractionData.links.length : 0;
         
-        // Update status with appropriate styling
-        const statusText = getStatusText(extractionData.status);
-        extractionStatusText.textContent = statusText.text;
-        extractionStatusText.className = `detail-value ${statusText.class}`;
+        // Update progress display
+        updateProgressDisplay(extractionData);
         
-        // Update link count
-        const linkCount = extractionData.links ? extractionData.links.length : 0;
-        extractionLinkCount.textContent = linkCount;
-        
-        // Show/hide links container based on completion
-        if (extractionData.status === 'completed' && extractionData.links && extractionData.links.length > 0) {
-            extractionLinksContainer.style.display = 'block';
+        // Update links display if available
+        if (extractionData.links && extractionData.links.length > 0) {
             updateExtractionLinks(extractionData.links);
+        }
+    }
+
+    // Function to update progress display
+    function updateProgressDisplay(extractionData) {
+        if (!extractionData || !extractionData.progress) {
+            progressSection.style.display = 'none';
+            return;
+        }
+        
+        const progress = extractionData.progress;
+        
+        // Show progress section
+        progressSection.style.display = 'block';
+        
+        // Update percentage
+        progressPercentage.textContent = `${progress.percentage}%`;
+        progressBarFill.style.width = `${progress.percentage}%`;
+        
+        // Update step information
+        currentStepName.textContent = progress.stepName || 'Processing...';
+        stepProgress.textContent = `Step ${progress.currentStep} of ${progress.totalSteps}`;
+        
+        // Update detailed information
+        if (progress.totalPages > 0) {
+            currentPageInfo.textContent = `${progress.currentPage} / ${progress.totalPages}`;
         } else {
-            extractionLinksContainer.style.display = 'none';
+            currentPageInfo.textContent = progress.currentPage > 0 ? progress.currentPage.toString() : '-';
+        }
+        
+        if (progress.totalFilenames > 0) {
+            filenamesProcessedInfo.textContent = `${progress.filenamesProcessed} / ${progress.totalFilenames}`;
+        } else {
+            filenamesProcessedInfo.textContent = progress.filenamesProcessed > 0 ? progress.filenamesProcessed.toString() : '-';
+        }
+        
+        // Update time remaining
+        if (extractionData.estimatedTimeRemaining && extractionData.estimatedTimeRemaining > 0) {
+            const minutes = Math.floor(extractionData.estimatedTimeRemaining / 60);
+            const seconds = extractionData.estimatedTimeRemaining % 60;
+            
+            if (minutes > 0) {
+                timeRemainingInfo.textContent = `${minutes}m ${seconds}s`;
+            } else {
+                timeRemainingInfo.textContent = `${seconds}s`;
+            }
+        } else {
+            timeRemainingInfo.textContent = '-';
+        }
+        
+        // Update progress bar color based on completion
+        if (progress.percentage >= 100) {
+            progressBarFill.style.background = '#28a745'; // Green for completed
+        } else if (progress.percentage >= 50) {
+            progressBarFill.style.background = '#ffc107'; // Yellow for in progress
+        } else {
+            progressBarFill.style.background = '#007bff'; // Blue for starting
         }
     }
 
@@ -375,20 +564,21 @@
         }
     }
 
-    // Function to update extraction links list
+    // Update extraction links display to mark failed/skipped items
     function updateExtractionLinks(links) {
-        if (!links || links.length === 0) {
-            extractionLinksList.innerHTML = '<div class="extraction-link-item">No links found</div>';
-            return;
-        }
-
-        const linksHtml = links.map(link => `
-            <div class="extraction-link-item" title="${link}">
-                ${link}
-            </div>
-        `).join('');
-
-        extractionLinksList.innerHTML = linksHtml;
+        extractionLinksList.innerHTML = '';
+        links.forEach(link => {
+            const li = document.createElement('div');
+            li.className = 'extraction-link-item';
+            li.textContent = link;
+            // Mark as warning if link is "Error" or contains error marker
+            if (typeof link === 'object' && link.filename === 'Error') {
+                li.style.color = '#dc3545';
+                li.style.fontWeight = 'bold';
+                li.title = 'Extraction failed for this item';
+            }
+            extractionLinksList.appendChild(li);
+        });
     }
 
     // Function to copy all extracted links
@@ -451,21 +641,21 @@
         console.log('RecurTrack Sidebar: Filename database section should now be visible');
     }
 
-    // Function to update database list
-    function updateDatabaseList(database) {
-        if (!database || database.length === 0) {
-            databaseList.innerHTML = '<div class="extraction-link-item">No database entries found</div>';
-            return;
-        }
-
-        const databaseHtml = database.map(entry => `
-            <div class="extraction-link-item" title="${entry.url}">
-                <div style="font-weight: bold; margin-bottom: 4px;">${entry.filename}</div>
-                <div style="font-size: 10px; color: #666;">${entry.url}</div>
-            </div>
-        `).join('');
-
-        databaseList.innerHTML = databaseHtml;
+    // Update filename database display to mark failed/skipped items
+    function updateFilenameDatabaseDisplay(database) {
+        databaseList.innerHTML = '';
+        database.forEach(entry => {
+            const row = document.createElement('div');
+            row.className = 'database-row';
+            row.innerHTML = `<span class="database-url">${entry.url}</span> <span class="database-filename">${entry.filename}</span>`;
+            if (entry.filename === 'Error') {
+                row.querySelector('.database-filename').style.color = '#dc3545';
+                row.querySelector('.database-filename').style.fontWeight = 'bold';
+                row.title = 'Filename extraction failed for this item';
+            }
+            databaseList.appendChild(row);
+        });
+        databaseEntryCount.textContent = database.length;
     }
 
     // Function to copy database as CSV

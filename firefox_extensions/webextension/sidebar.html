@@ -5,18 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RecurTrack Panel</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        /* Modernized Color Palette */
+        :root {
+            --primary: #2563eb;
+            --primary-light: #e0e7ff;
+            --primary-dark: #1e40af;
+            --accent: #10b981;
+            --danger: #ef4444;
+            --gray-bg: #f3f4f6;
+            --gray-border: #e5e7eb;
+            --gray-text: #6b7280;
+            --white: #fff;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f8f9fa;
-            color: #212529;
-            line-height: 1.6;
-            overflow-x: hidden;
+            font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+            background: var(--gray-bg);
+            color: #222;
+            margin: 0;
+            padding: 0;
+            min-width: 340px;
+            transition: background 0.3s;
         }
 
         .header {
@@ -157,20 +166,23 @@
         }
 
         .section {
-            background: white;
-            margin: 12px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            overflow: hidden;
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(30, 64, 175, 0.06);
+            margin: 18px 16px;
+            padding: 18px 20px 16px 20px;
+            transition: box-shadow 0.2s;
         }
 
         .section-header {
-            padding: 12px 16px;
-            background: #f8f9fa;
-            border-bottom: 1px solid #e9ecef;
-            font-weight: 600;
-            font-size: 14px;
-            color: #495057;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--primary-dark);
+            margin-bottom: 12px;
+            letter-spacing: 0.01em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .section-content {
@@ -243,7 +255,7 @@
         .empty-state {
             text-align: center;
             padding: 32px 16px;
-            color: #6c757d;
+            color: var(--gray-text);
         }
 
         .empty-state .icon {
@@ -259,12 +271,12 @@
         .loading {
             text-align: center;
             padding: 32px 16px;
-            color: #6c757d;
+            color: var(--gray-text);
         }
 
         .spinner {
             border: 2px solid #f3f3f3;
-            border-top: 2px solid #007bff;
+            border-top: 2px solid var(--primary);
             border-radius: 50%;
             width: 20px;
             height: 20px;
@@ -313,59 +325,58 @@
             letter-spacing: 0.5px;
         }
 
-        .form-input {
+        .form-input, .form-select {
             width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            font-size: 13px;
-            font-family: inherit;
-            background: white;
-            color: #495057;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            padding: 8px 10px;
+            border: 1px solid var(--gray-border);
+            border-radius: 6px;
+            font-size: 14px;
+            background: var(--white);
+            margin-bottom: 8px;
+            transition: border 0.2s;
         }
 
-        .form-input:focus {
+        .form-input:focus, .form-select:focus {
+            border: 1.5px solid var(--primary);
             outline: none;
-            border-color: #007bff;
-            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
         }
 
         .form-input::placeholder {
             color: #adb5bd;
         }
 
-        .form-button {
-            width: 100%;
-            padding: 10px 16px;
+        .form-button, .debug-copy-btn, .debug-clear-btn {
+            background: var(--primary);
+            color: var(--white);
             border: none;
             border-radius: 6px;
-            font-size: 13px;
+            padding: 8px 16px;
+            font-size: 14px;
             font-weight: 600;
-            font-family: inherit;
             cursor: pointer;
-            transition: all 0.2s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 2px rgba(30, 64, 175, 0.04);
+            transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+            margin-right: 6px;
+            outline: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
 
-        .form-button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        .form-button:hover, .debug-copy-btn:hover, .debug-clear-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px) scale(1.03);
+            box-shadow: 0 2px 8px rgba(30, 64, 175, 0.10);
         }
-
-        .form-button:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        .form-button:active, .debug-copy-btn:active, .debug-clear-btn:active {
+            background: var(--primary);
+            transform: scale(0.98);
         }
-
-        .form-button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
+        .form-button.danger, .debug-clear-btn.danger {
+            background: var(--danger);
+        }
+        .form-button.danger:hover, .debug-clear-btn.danger:hover {
+            background: #b91c1c;
         }
 
         .checkbox-container {
@@ -470,51 +481,71 @@
 
         /* Debug Styles */
         .debug-copy-btn {
-            background: #007bff;
-            color: white;
+            background: var(--primary);
+            color: var(--white);
             border: none;
-            padding: 4px 8px;
-            border-radius: 4px;
+            padding: 8px 16px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 10px;
-            float: right;
-            margin-right: 8px;
+            font-size: 14px;
+            box-shadow: 0 1px 2px rgba(30, 64, 175, 0.04);
+            transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+            margin-right: 6px;
+            outline: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .debug-copy-btn:hover {
-            background: #0056b3;
+            background: var(--primary-dark);
+            transform: translateY(-1px) scale(1.03);
+            box-shadow: 0 2px 8px rgba(30, 64, 175, 0.10);
+        }
+        .debug-copy-btn:active {
+            background: var(--primary);
+            transform: scale(0.98);
         }
 
         .debug-clear-btn {
-            background: #6c757d;
-            color: white;
+            background: var(--gray-text);
+            color: var(--white);
             border: none;
-            padding: 4px 8px;
-            border-radius: 4px;
+            padding: 8px 16px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 10px;
-            float: right;
+            font-size: 14px;
+            box-shadow: 0 1px 2px rgba(30, 64, 175, 0.04);
+            transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+            margin-right: 6px;
+            outline: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .debug-clear-btn:hover {
             background: #545b62;
         }
+        .debug-clear-btn:active {
+            background: var(--gray-text);
+            transform: scale(0.98);
+        }
 
         .debug-logs {
-            max-height: 150px;
+            background: #f1f5f9;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 12px;
+            color: var(--gray-text);
+            max-height: 120px;
             overflow-y: auto;
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            padding: 8px;
+            margin-top: 8px;
         }
 
         .debug-entry {
-            font-family: monospace;
-            font-size: 10px;
-            color: #495057;
             margin-bottom: 4px;
-            word-break: break-all;
+            font-family: 'JetBrains Mono', 'Fira Mono', 'Menlo', monospace;
         }
 
         .debug-entry:last-child {
@@ -522,15 +553,177 @@
         }
 
         .debug-entry.error {
-            color: #dc3545;
+            color: var(--danger);
         }
 
         .debug-entry.success {
-            color: #28a745;
+            color: var(--accent);
         }
 
         .debug-entry.info {
-            color: #007bff;
+            color: var(--primary-dark);
+        }
+
+        /* Progress Tracking Styles */
+        .progress-section {
+            margin-top: 16px;
+            padding: 14px 12px 10px 12px;
+            background: var(--primary-light);
+            border-radius: 10px;
+            box-shadow: 0 1px 4px rgba(37, 99, 235, 0.07);
+            transition: background 0.3s;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--gray-border);
+        }
+
+        .progress-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary-dark);
+        }
+
+        .progress-percentage {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .progress-bar-container {
+            height: 10px;
+            background-color: var(--gray-border);
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+            border-radius: 5px;
+            transition: width 0.3s;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 5px;
+            transition: width 0.3s, background 0.3s;
+        }
+
+        .progress-details {
+            margin-top: 10px;
+        }
+
+        .progress-step {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+            padding: 7px 10px;
+            background: #e0e7ff;
+            border-radius: 6px;
+        }
+
+        .step-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .step-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--primary-dark);
+        }
+
+        .step-progress {
+            font-size: 11px;
+            color: var(--gray-text);
+        }
+
+        .step-details {
+            display: flex;
+            gap: 15px;
+        }
+
+        .step-detail-row {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .step-detail-label {
+            font-size: 10px;
+            color: var(--gray-text);
+            font-weight: 500;
+        }
+
+        .step-detail-value {
+            font-size: 11px;
+            font-weight: 600;
+            color: #222;
+        }
+
+        /* Error Message Styles */
+        .error-message-section {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .error-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .error-icon {
+            font-size: 24px;
+            color: #721c24;
+        }
+
+        .error-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #721c24;
+        }
+
+        .error-body {
+            font-size: 13px;
+            color: #721c24;
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+
+        .error-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .error-actions button {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.2s;
+        }
+
+        .error-actions button:hover {
+            background: #c82333;
         }
     </style>
 </head>
@@ -570,6 +763,26 @@
                     <div class="indicator-item" data-indicator="domain">Domain</div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Error Message Section -->
+    <div id="error-message-section" class="error-message-section" style="display: none;">
+        <div class="error-header">
+            <span class="error-icon">❌</span>
+            <span id="error-message-title" class="error-title">An error occurred</span>
+        </div>
+        <div id="error-message-body" class="error-body"></div>
+        <div id="error-message-actions" class="error-actions"></div>
+    </div>
+
+    <!-- Error Log Section -->
+    <div id="error-log-section" class="section" style="display: none;">
+        <div class="section-header">
+            <span>🚨 Error Log</span>
+        </div>
+        <div class="section-content">
+            <div id="error-log-list" class="error-log-list"></div>
         </div>
     </div>
 
@@ -615,6 +828,45 @@
                     <div class="detail-row">
                         <div class="detail-label">Links Found</div>
                         <div id="extraction-link-count" class="detail-value">0</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Progress Tracking Section -->
+            <div id="progress-section" class="progress-section" style="display: none;">
+                <div class="progress-header">
+                    <span class="progress-title">📈 Progress</span>
+                    <span id="progress-percentage" class="progress-percentage">0%</span>
+                </div>
+                
+                <!-- Overall Progress Bar -->
+                <div class="progress-bar-container">
+                    <div class="progress-bar">
+                        <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                    </div>
+                </div>
+                
+                <!-- Progress Details -->
+                <div class="progress-details">
+                    <div class="progress-step">
+                        <div class="step-info">
+                            <span id="current-step-name" class="step-name">Initializing...</span>
+                            <span id="step-progress" class="step-progress">Step 1 of 2</span>
+                        </div>
+                        <div class="step-details">
+                            <div class="step-detail-row">
+                                <span class="step-detail-label">Current Page:</span>
+                                <span id="current-page-info" class="step-detail-value">-</span>
+                            </div>
+                            <div class="step-detail-row">
+                                <span class="step-detail-label">Filenames Processed:</span>
+                                <span id="filenames-processed-info" class="step-detail-value">-</span>
+                            </div>
+                            <div class="step-detail-row">
+                                <span class="step-detail-label">Time Remaining:</span>
+                                <span id="time-remaining-info" class="step-detail-value">-</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

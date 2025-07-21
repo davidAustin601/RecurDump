@@ -8,24 +8,55 @@
 
     // Function to detect CloudFlare human check
     function detectCloudFlareCheck() {
-        // Common CloudFlare challenge indicators
+        // Comprehensive CloudFlare challenge indicators
         const cloudflareIndicators = [
             // Page title indicators
             'Just a moment...',
             'Checking your browser',
             'Please wait while we verify',
             'Cloudflare',
+            'Security check',
+            'Verifying you are human',
+            'Please wait',
+            'Checking your browser before accessing',
+            'DDoS protection by Cloudflare',
             
             // Common CloudFlare challenge page elements
             '#cf-wrapper',
             '.cf-browser-verification',
             '#challenge-form',
             '.cf-error-code',
+            '#cf-please-wait',
+            '.cf-please-wait',
+            '#cf-challenge-running',
+            '.cf-challenge-running',
+            '#cf-challenge-form',
+            '.cf-challenge-form',
+            '#cf-please-wait',
+            '.cf-please-wait',
+            '#cf-error-details',
+            '.cf-error-details',
             
             // CloudFlare specific text content
             'DDoS protection by Cloudflare',
             'Please complete the security check',
-            'Please wait while we verify that you are a human'
+            'Please wait while we verify that you are a human',
+            'Checking your browser before accessing',
+            'This process is automatic',
+            'Your browser will redirect to your requested content shortly',
+            'Please allow up to 5 seconds',
+            'DDoS protection by Cloudflare',
+            'Ray ID:',
+            'Cloudflare',
+            'security check',
+            'verification',
+            'challenge',
+            'please wait',
+            'checking browser',
+            'human verification',
+            'bot protection',
+            'access denied',
+            'blocked by security'
         ];
 
         // Check page title
@@ -34,12 +65,35 @@
             pageTitle.includes(indicator.toLowerCase())
         );
 
-        // Check for CloudFlare specific elements
-        const hasCloudFlareElements = document.querySelector('#cf-wrapper') !== null ||
-                                     document.querySelector('.cf-browser-verification') !== null ||
-                                     document.querySelector('#challenge-form') !== null;
+        // Check for CloudFlare specific elements (more comprehensive)
+        const cloudflareSelectors = [
+            '#cf-wrapper',
+            '.cf-browser-verification',
+            '#challenge-form',
+            '.cf-error-code',
+            '#cf-please-wait',
+            '.cf-please-wait',
+            '#cf-challenge-running',
+            '.cf-challenge-running',
+            '#cf-challenge-form',
+            '.cf-challenge-form',
+            '#cf-error-details',
+            '.cf-error-details',
+            '[class*="cf-"]',
+            '[id*="cf-"]',
+            '[class*="cloudflare"]',
+            '[id*="cloudflare"]'
+        ];
+        
+        const hasCloudFlareElements = cloudflareSelectors.some(selector => {
+            try {
+                return document.querySelector(selector) !== null;
+            } catch (e) {
+                return false;
+            }
+        });
 
-        // Check for CloudFlare specific text content
+        // Check for CloudFlare specific text content (more thorough)
         const pageText = document.body.innerText.toLowerCase();
         const hasCloudFlareText = cloudflareIndicators.some(indicator => 
             pageText.includes(indicator.toLowerCase())
@@ -48,15 +102,27 @@
         // Check if current URL is a CloudFlare challenge
         const currentUrl = window.location.href;
         const isCloudFlareDomain = currentUrl.includes('cloudflare.com') || 
-                                  currentUrl.includes('cf-cdn.com');
+                                  currentUrl.includes('cf-cdn.com') ||
+                                  currentUrl.includes('cloudflare.net');
+
+        // Additional checks for common CloudFlare patterns
+        const hasCloudFlareScripts = Array.from(document.scripts).some(script => 
+            script.src && (script.src.includes('cloudflare') || script.src.includes('cf-'))
+        );
+
+        const hasCloudFlareMeta = document.querySelector('meta[name*="cloudflare"]') !== null ||
+                                 document.querySelector('meta[content*="cloudflare"]') !== null;
 
         return {
-            isCloudFlareCheck: hasCloudFlareTitle || hasCloudFlareElements || hasCloudFlareText || isCloudFlareDomain,
+            isCloudFlareCheck: hasCloudFlareTitle || hasCloudFlareElements || hasCloudFlareText || 
+                              isCloudFlareDomain || hasCloudFlareScripts || hasCloudFlareMeta,
             indicators: {
                 title: hasCloudFlareTitle,
                 elements: hasCloudFlareElements,
                 text: hasCloudFlareText,
-                domain: isCloudFlareDomain
+                domain: isCloudFlareDomain,
+                scripts: hasCloudFlareScripts,
+                meta: hasCloudFlareMeta
             },
             url: currentUrl,
             title: document.title,
@@ -64,8 +130,8 @@
         };
     }
 
-    // Function to send detection results to background script
-    function sendDetectionResult(result) {
+    // Function to send detection results to background script with retry logic
+    function sendDetectionResult(result, retryCount = 0) {
         if (result.isCloudFlareCheck) {
             console.log('RecurTrack: CloudFlare human check detected!', result);
             
@@ -73,8 +139,21 @@
             browser.runtime.sendMessage({
                 type: 'CLOUDFLARE_CHECK_DETECTED',
                 data: result
+            }).then(() => {
+                console.log('RecurTrack: CloudFlare detection message sent successfully');
             }).catch(error => {
                 console.error('RecurTrack: Error sending message to background script:', error);
+                
+                // Retry logic - retry up to 3 times with exponential backoff
+                if (retryCount < 3) {
+                    const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+                    console.log(`RecurTrack: Retrying message send in ${delay}ms (attempt ${retryCount + 1})`);
+                    setTimeout(() => {
+                        sendDetectionResult(result, retryCount + 1);
+                    }, delay);
+                } else {
+                    console.error('RecurTrack: Failed to send CloudFlare detection after 3 retries');
+                }
             });
         }
     }
@@ -95,34 +174,83 @@
         return filename;
     }
 
-    // Initial detection when page loads
+    // Initial detection when page loads with better timing
     function performInitialDetection() {
-        // Wait a bit for the page to fully load
+        // Wait longer for the page to fully load and for CloudFlare challenges to appear
         setTimeout(() => {
             const result = detectCloudFlareCheck();
             sendDetectionResult(result);
-        }, 1000);
+        }, 3000); // Increased from 1 second to 3 seconds
+        
+        // Additional check after 5 seconds for delayed challenges
+        setTimeout(() => {
+            const result = detectCloudFlareCheck();
+            sendDetectionResult(result);
+        }, 5000);
     }
 
-    // Monitor for dynamic changes (in case CloudFlare check appears after page load)
+    // Monitor for dynamic changes with improved mutation observer
     function setupMutationObserver() {
         const observer = new MutationObserver((mutations) => {
             // Check if any significant changes occurred
-            const hasSignificantChanges = mutations.some(mutation => 
-                mutation.type === 'childList' && mutation.addedNodes.length > 0
-            );
+            const hasSignificantChanges = mutations.some(mutation => {
+                // Check for added nodes
+                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                    return true;
+                }
+                
+                // Check for attribute changes (important for CloudFlare challenges)
+                if (mutation.type === 'attributes') {
+                    const target = mutation.target;
+                    // Check if the changed element or its parents contain CloudFlare indicators
+                    return target.matches && (
+                        target.matches('[class*="cf-"]') ||
+                        target.matches('[id*="cf-"]') ||
+                        target.matches('[class*="cloudflare"]') ||
+                        target.matches('[id*="cloudflare"]')
+                    );
+                }
+                
+                // Check for text changes
+                if (mutation.type === 'characterData') {
+                    const text = mutation.target.textContent.toLowerCase();
+                    return text.includes('cloudflare') || 
+                           text.includes('security check') ||
+                           text.includes('verification') ||
+                           text.includes('please wait');
+                }
+                
+                return false;
+            });
 
             if (hasSignificantChanges) {
-                const result = detectCloudFlareCheck();
-                sendDetectionResult(result);
+                // Debounce the detection to avoid excessive checks
+                clearTimeout(window.cloudflareDetectionTimeout);
+                window.cloudflareDetectionTimeout = setTimeout(() => {
+                    const result = detectCloudFlareCheck();
+                    sendDetectionResult(result);
+                }, 500);
             }
         });
 
-        // Start observing
+        // Start observing with comprehensive options
         observer.observe(document.body, {
             childList: true,
-            subtree: true
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class', 'id', 'style'],
+            characterData: true
         });
+        
+        // Also observe the document head for meta tag changes
+        if (document.head) {
+            observer.observe(document.head, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['name', 'content']
+            });
+        }
     }
 
     // Initialize the content script

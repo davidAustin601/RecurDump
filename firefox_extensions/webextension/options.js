@@ -11,6 +11,7 @@
         defaultModel: '',
         defaultExtractAllPages: false,
         defaultExtractFilenames: false,
+        autoClearAfterExtraction: false,
         pageLoadDelay: 3,
         cloudflareTimeout: 5,
         maxPages: 10,
@@ -29,6 +30,7 @@
     const defaultModelInput = document.getElementById('default-model');
     const defaultExtractAllPagesCheckbox = document.getElementById('default-extract-all-pages');
     const defaultExtractFilenamesCheckbox = document.getElementById('default-extract-filenames');
+    const autoClearAfterExtractionCheckbox = document.getElementById('auto-clear-after-extraction');
     const pageLoadDelaySelect = document.getElementById('page-load-delay');
     const cloudflareTimeoutSelect = document.getElementById('cloudflare-timeout');
     const maxPagesSelect = document.getElementById('max-pages');
@@ -128,6 +130,7 @@
             defaultModelInput.value = settings.defaultModel || '';
             defaultExtractAllPagesCheckbox.checked = settings.defaultExtractAllPages || false;
             defaultExtractFilenamesCheckbox.checked = settings.defaultExtractFilenames || false;
+            autoClearAfterExtractionCheckbox.checked = settings.autoClearAfterExtraction || false;
             pageLoadDelaySelect.value = settings.pageLoadDelay || 3;
             cloudflareTimeoutSelect.value = settings.cloudflareTimeout || 5;
             maxPagesSelect.value = settings.maxPages || 10;
@@ -159,6 +162,7 @@
                 defaultModel: defaultModelInput.value.trim(),
                 defaultExtractAllPages: defaultExtractAllPagesCheckbox.checked,
                 defaultExtractFilenames: defaultExtractFilenamesCheckbox.checked,
+                autoClearAfterExtraction: autoClearAfterExtractionCheckbox.checked,
                 pageLoadDelay: parseInt(pageLoadDelaySelect.value),
                 cloudflareTimeout: parseInt(cloudflareTimeoutSelect.value),
                 maxPages: parseInt(maxPagesSelect.value),
