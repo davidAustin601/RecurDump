@@ -472,7 +472,9 @@
         
         // Update basic info
         extractionModel.textContent = extractionData.model || 'Unknown';
-        extractionStatusText.textContent = getStatusText(extractionData.status);
+        const statusObj = getStatusText(extractionData.status);
+        extractionStatusText.textContent = statusObj.text;
+        extractionStatusText.className = statusObj.class || '';
         extractionLinkCount.textContent = extractionData.links ? extractionData.links.length : 0;
         
         // Update progress display
