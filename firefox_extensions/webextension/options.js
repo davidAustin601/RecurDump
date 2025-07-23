@@ -145,6 +145,10 @@
             
             await browser.storage.local.set({ settings: settings });
             
+            // Debug: Log the settings just saved
+            const debugResult = await browser.storage.local.get(['settings']);
+            console.log('RecurTrack Options: Settings after save:', debugResult.settings);
+            
             showStatus('Settings saved successfully!');
             console.log('RecurTrack Options: Settings saved:', settings);
             

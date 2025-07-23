@@ -409,7 +409,7 @@
         try {
             // Disable button and show loading state
             extractLinksBtn.disabled = true;
-            extractLinksBtn.textContent = '⏳ EXTRACTING...';
+            extractLinksBtn.textContent = '\u23f3 EXTRACTING...';
             
             // Get current model
             const model = modeInput.value.trim() || 'default';
@@ -417,6 +417,8 @@
             // Get settings from options page
             const settingsResult = await browser.storage.local.get(['settings']);
             const settings = settingsResult.settings || {};
+            // Debug: Log the settings loaded in the sidebar
+            console.log('RecurTrack Sidebar: Settings loaded:', settings);
             const extractAllPages = settings.defaultExtractAllPages || false;
             const extractFilenames = settings.defaultExtractFilenames || false;
             
