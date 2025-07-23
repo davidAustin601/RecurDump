@@ -1,0 +1,17 @@
+If it's ok with you, let's make one more python script titled "rdump-merge-models.py" in the "scripts" directory of this project. This script will need to require two arguments - both with their own argument flags:
+
+The first argument needs to be for the user to specify a directory path. This script needs to allow the user to use the "." character to specify the current working directory is the path for this specific required argument.
+
+The second required argument needs to be for the user to specific a filename (including a directory path if the user wants the output file to be in a different directory than the current working directory).
+
+When this script runs, it needs to scan the input directory (including sub-directories) for any CSV file present, it needs to copy all of the links from the column titled "reurb_link" of each CSV file and then, after completing this, should export all the links to a text file specified by the user in the second required argument.
+
+During this process, if the doesn't find the column in one of the CSV files or if it encounters an error with one of the CSV files, then the script needs to skip the file and continue with the process instead of stopping all together.
+
+This script needs to ensure there are not duplicate links in the exported file. Also the exported file should have one link per link and there should be no comma at the end of each line - just a link per line and that's it.
+
+This script should include an optional argument for ensuring the the output file is sorted.
+
+We need to ensure that this script will function properly if the user decides to copy this script to the global environment variable (the "$PATH" variable) and runs the script from a different directory.
+
+Finally, if the user uses the "--help" or "-h" argument flag, the script should prompt the user with a detailed description of what the script does and how to use it (however, this help information prompt should not be overly long or overly complicated). Also, if the user input incorrect arguments / information or no information at all, the script should prompt the user with this help information prompt.
