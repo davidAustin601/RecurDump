@@ -838,34 +838,34 @@
                     <span class="progress-title">📈 Progress</span>
                     <span id="progress-percentage" class="progress-percentage">0%</span>
                 </div>
-                
                 <!-- Overall Progress Bar -->
                 <div class="progress-bar-container">
                     <div class="progress-bar">
                         <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%;"></div>
                     </div>
                 </div>
-                
-                <!-- Progress Details -->
-                <div class="progress-details">
-                    <div class="progress-step">
-                        <div class="step-info">
-                            <span id="current-step-name" class="step-name">Initializing...</span>
-                            <span id="step-progress" class="step-progress">Step 1 of 2</span>
+                <!-- Progress Details (Redesigned) -->
+                <div class="progress-details" style="margin-top: 16px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="progress-detail-block">
+                            <div class="progress-detail-label">Stage</div>
+                            <div id="current-step-name" class="progress-detail-value step-name">Initializing...</div>
                         </div>
-                        <div class="step-details">
-                            <div class="step-detail-row">
-                                <span class="step-detail-label">Current Page:</span>
-                                <span id="current-page-info" class="step-detail-value">-</span>
-                            </div>
-                            <div class="step-detail-row">
-                                <span class="step-detail-label">Filenames Processed:</span>
-                                <span id="filenames-processed-info" class="step-detail-value">-</span>
-                            </div>
-                            <div class="step-detail-row">
-                                <span class="step-detail-label">Time Remaining:</span>
-                                <span id="time-remaining-info" class="step-detail-value">-</span>
-                            </div>
+                        <div class="progress-detail-block">
+                            <div class="progress-detail-label">Step</div>
+                            <div id="step-progress" class="progress-detail-value step-progress">Step 1 of 2</div>
+                        </div>
+                        <div class="progress-detail-block">
+                            <div class="progress-detail-label">Current Page</div>
+                            <div id="current-page-info" class="progress-detail-value">-</div>
+                        </div>
+                        <div class="progress-detail-block">
+                            <div class="progress-detail-label">Files Processed</div>
+                            <div id="filenames-processed-info" class="progress-detail-value">-</div>
+                        </div>
+                        <div class="progress-detail-block">
+                            <div class="progress-detail-label">Time Remaining</div>
+                            <div id="time-remaining-info" class="progress-detail-value">-</div>
                         </div>
                     </div>
                 </div>
