@@ -10,3 +10,6 @@ mypy>=1.0.0
 # Documentation
 sphinx>=5.0.0
 sphinx-rtd-theme>=1.0.0 
+
+# Requirements for rdump-sync.py and other project scripts
+# (Standard library only; no external dependencies required) 
