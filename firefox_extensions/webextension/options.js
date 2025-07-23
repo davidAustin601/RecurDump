@@ -21,8 +21,8 @@
         debugMode: false,
         customLinkPattern: '',
         defaultDirectory: '',
-        autoSaveDatabase: false,
-        askWhereToSave: false,
+        autoSaveDatabase: true, // changed from false
+        askWhereToSave: true, // changed from false
         filenameFormat: '[Model Name]_Database_[MONTH]-[DAY]-[YEAR].csv'
     };
 
@@ -128,9 +128,9 @@
             
             // Populate form fields
             defaultModelInput.value = settings.defaultModel || '';
-            defaultExtractAllPagesCheckbox.checked = settings.defaultExtractAllPages || false;
-            defaultExtractFilenamesCheckbox.checked = settings.defaultExtractFilenames || false;
-            autoClearAfterExtractionCheckbox.checked = settings.autoClearAfterExtraction || false;
+            defaultExtractAllPagesCheckbox.checked = (typeof settings.defaultExtractAllPages === 'boolean') ? settings.defaultExtractAllPages : defaultSettings.defaultExtractAllPages;
+            defaultExtractFilenamesCheckbox.checked = (typeof settings.defaultExtractFilenames === 'boolean') ? settings.defaultExtractFilenames : defaultSettings.defaultExtractFilenames;
+            autoClearAfterExtractionCheckbox.checked = (typeof settings.autoClearAfterExtraction === 'boolean') ? settings.autoClearAfterExtraction : defaultSettings.autoClearAfterExtraction;
             pageLoadDelaySelect.value = settings.pageLoadDelay || 3;
             cloudflareTimeoutSelect.value = settings.cloudflareTimeout || 5;
             maxPagesSelect.value = settings.maxPages || 10;
@@ -141,9 +141,9 @@
             customLinkPatternTextarea.value = settings.customLinkPattern || '';
             
             // Database settings
-            defaultDirectoryInput.value = settings.defaultDirectory || '';
-            autoSaveDatabaseCheckbox.checked = settings.autoSaveDatabase || false;
-            askWhereToSaveCheckbox.checked = settings.askWhereToSave || false;
+            // defaultDirectoryInput.value = settings.defaultDirectory || '';
+            autoSaveDatabaseCheckbox.checked = (typeof settings.autoSaveDatabase === 'boolean') ? settings.autoSaveDatabase : defaultSettings.autoSaveDatabase;
+            askWhereToSaveCheckbox.checked = (typeof settings.askWhereToSave === 'boolean') ? settings.askWhereToSave : defaultSettings.askWhereToSave;
             filenameFormatInput.value = settings.filenameFormat || defaultSettings.filenameFormat;
             updateFilenamePreview();
             
