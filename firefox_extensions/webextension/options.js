@@ -36,13 +36,10 @@
     const maxPagesSelect = document.getElementById('max-pages');
     const csvSeparatorSelect = document.getElementById('csv-separator');
     const csvIncludeHeadersCheckbox = document.getElementById('csv-include-headers');
-    const csvIncludeMetadataCheckbox = document.getElementById('csv-include-metadata');
     const debugModeCheckbox = document.getElementById('debug-mode');
     const customLinkPatternTextarea = document.getElementById('custom-link-pattern');
     
     // Database settings elements
-    const defaultDirectoryInput = document.getElementById('default-directory');
-    const selectDirectoryBtn = document.getElementById('select-directory');
     const autoSaveDatabaseCheckbox = document.getElementById('auto-save-database');
     const askWhereToSaveCheckbox = document.getElementById('ask-where-to-save');
     const filenameFormatInput = document.getElementById('filename-format');
@@ -93,33 +90,6 @@
         filenamePreviewText.textContent = preview;
     }
 
-    // Function to select directory
-    async function selectDirectory() {
-        try {
-            // Show a helpful dialog explaining the situation and allowing manual entry
-            const currentPath = defaultDirectoryInput.value || '';
-            const newPath = prompt(
-                'Enter the directory path where you want to save database files:\n\n' +
-                'Note: Due to browser security, files will be saved to your browser\'s default download location.\n' +
-                'To use a custom directory:\n' +
-                '1. Enable "Ask where to save each file" below\n' +
-                '2. Or change your browser\'s default download location\n\n' +
-                'This field is for your reference only.',
-                currentPath || '~/Downloads'
-            );
-            
-            if (newPath !== null) {
-                defaultDirectoryInput.value = newPath;
-                updateFilenamePreview();
-                showStatus('Directory path updated!', 'success');
-            }
-            
-        } catch (error) {
-            console.error('RecurTrack Options: Error selecting directory:', error);
-            showStatus('Error setting directory: ' + error.message, 'error');
-        }
-    }
-
     // Function to load settings from storage
     async function loadSettings() {
         try {
@@ -136,12 +106,10 @@
             maxPagesSelect.value = settings.maxPages || 10;
             csvSeparatorSelect.value = settings.csvSeparator || ',';
             csvIncludeHeadersCheckbox.checked = settings.csvIncludeHeaders !== false;
-            csvIncludeMetadataCheckbox.checked = settings.csvIncludeMetadata !== false;
             debugModeCheckbox.checked = settings.debugMode || false;
             customLinkPatternTextarea.value = settings.customLinkPattern || '';
             
             // Database settings
-            // defaultDirectoryInput.value = settings.defaultDirectory || '';
             autoSaveDatabaseCheckbox.checked = (typeof settings.autoSaveDatabase === 'boolean') ? settings.autoSaveDatabase : defaultSettings.autoSaveDatabase;
             askWhereToSaveCheckbox.checked = (typeof settings.askWhereToSave === 'boolean') ? settings.askWhereToSave : defaultSettings.askWhereToSave;
             filenameFormatInput.value = settings.filenameFormat || defaultSettings.filenameFormat;
@@ -168,10 +136,8 @@
                 maxPages: parseInt(maxPagesSelect.value),
                 csvSeparator: csvSeparatorSelect.value,
                 csvIncludeHeaders: csvIncludeHeadersCheckbox.checked,
-                csvIncludeMetadata: csvIncludeMetadataCheckbox.checked,
                 debugMode: debugModeCheckbox.checked,
                 customLinkPattern: customLinkPatternTextarea.value.trim(),
-                defaultDirectory: defaultDirectoryInput.value.trim(),
                 autoSaveDatabase: autoSaveDatabaseCheckbox.checked,
                 askWhereToSave: askWhereToSaveCheckbox.checked,
                 filenameFormat: filenameFormatInput.value.trim() || defaultSettings.filenameFormat
@@ -329,9 +295,7 @@
     exportAllDataBtn.addEventListener('click', exportAllData);
     
     // Database settings event listeners
-    selectDirectoryBtn.addEventListener('click', selectDirectory);
     filenameFormatInput.addEventListener('input', updateFilenamePreview);
-    defaultDirectoryInput.addEventListener('input', updateFilenamePreview);
 
     // Initialize options page
     document.addEventListener('DOMContentLoaded', () => {
