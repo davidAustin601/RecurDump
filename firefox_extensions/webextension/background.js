@@ -11,6 +11,41 @@
     let detectionHistory = [];
     let currentMode = 'default';
 
+    // Default settings (copied from options.js)
+    const defaultSettings = {
+        defaultModel: '',
+        defaultExtractAllPages: true,
+        defaultExtractFilenames: true,
+        autoClearAfterExtraction: true,
+        pageLoadDelay: 3,
+        cloudflareTimeout: 5,
+        maxPages: 10,
+        csvSeparator: ',',
+        csvIncludeHeaders: true,
+        csvIncludeMetadata: true,
+        debugMode: false,
+        customLinkPattern: '',
+        defaultDirectory: '',
+        autoSaveDatabase: true,
+        askWhereToSave: true,
+        filenameFormat: '[Model Name]_Database_[MONTH]-[DAY]-[YEAR].csv'
+    };
+
+    // Function to initialize settings if not present
+    async function initializeDefaultSettings() {
+        try {
+            const result = await browser.storage.local.get(['settings']);
+            if (!result.settings) {
+                await browser.storage.local.set({ settings: defaultSettings });
+                console.log('RecurTrack Background: Default settings initialized in storage.');
+            } else {
+                console.log('RecurTrack Background: Settings already present in storage.');
+            }
+        } catch (error) {
+            console.error('RecurTrack Background: Error initializing default settings:', error);
+        }
+    }
+
     // Function to handle CloudFlare check detection
     function handleCloudFlareDetection(data) {
         console.log('RecurTrack Background: CloudFlare check detected', data);
@@ -1229,7 +1264,8 @@
     // Extension startup
     browser.runtime.onStartup.addListener(() => {
         console.log('RecurTrack Background: Extension started');
-        
+        // Initialize default settings if not present
+        initializeDefaultSettings();
         // Load saved state from storage
         browser.storage.local.get(['currentDetection', 'detectionHistory', 'currentMode']).then((result) => {
             if (result.currentDetection) {
@@ -1265,6 +1301,9 @@
             console.error('RecurTrack Background: Error initializing storage:', error);
         });
         
+        // Initialize default settings if not present
+        initializeDefaultSettings();
+
         // Create context menu
         browser.contextMenus.create({
             id: 'recurtrack-options',
