@@ -9,9 +9,9 @@
     // Default settings
     const defaultSettings = {
         defaultModel: '',
-        defaultExtractAllPages: false,
-        defaultExtractFilenames: false,
-        autoClearAfterExtraction: false,
+        defaultExtractAllPages: true, // changed from false
+        defaultExtractFilenames: true, // changed from false
+        autoClearAfterExtraction: true, // changed from false
         pageLoadDelay: 3,
         cloudflareTimeout: 5,
         maxPages: 10,
