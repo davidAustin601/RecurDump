@@ -1,0 +1,15 @@
+Would you mind if we created a new python script named "rdump_ff-export.py" and we created / saved this script in the "scripts" directory of this project? If you would be ok with that, thank you for being willing to do that.
+
+I think it would be best if we built this script step by step as opposed to all at once, if that works for you. 
+
+The first step should be to have the script to have a required argument (with an argument flag) - this argument should be for the user to give a directory path or, if the user uses the "." character, the script should know that it should use the current working directory for the path.
+
+When run, the script should export all of the bookmarks from the locally installed FireFox web browser and should save these bookmark to a the specified directory given by the required argument. When the script exports the bookmarks, it should save two versions of the bookmarks - a HTML and a JSON file.
+
+There should be an optional argument (with an argument flag) where the user cand specify what the filenames for the two versions of the bookmarks being exported.
+
+The script should be created in such a way that, if the user copies the script to a directory in the global environment variable (the "$PATH" variable) and the user runs the script from from a different directory, the script should function properly.
+
+If the user uses the "--help" or "-h" argument flags, the script should prompt the user with a detailed explanation of what the script does and how to use it - this help information prompt should be detailed but not overly long or overly complicated. Lastly, if the user inputs incorrect arguments / information or not arguments at all, the script should present the user with this help information prompt.
+
+I know this is a lot of work to ask you to do but I really appreciate your help so very much!

@@ -11,5 +11,5 @@ mypy>=1.0.0
 sphinx>=5.0.0
 sphinx-rtd-theme>=1.0.0 
 
-# Requirements for rdump-sync.py and other project scripts
+# Requirements for rdump-sync.py, rdump-merge-models.py, rdump_ff-export.py and other project scripts
 # (Standard library only; no external dependencies required) 

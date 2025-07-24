@@ -155,5 +155,6 @@ ehthumbs.db
 Thumbs.db
 
 # Personal Temp Files
+RECURDUMP_TO-DO*
 TO-DO_*
 tests/
