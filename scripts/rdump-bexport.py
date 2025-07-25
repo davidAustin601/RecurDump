@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-rdump_ff-export.py
+rdump-bexport.py
 
 Export all bookmarks from the locally installed Firefox web browser to a specified directory as both HTML and JSON files.
 
@@ -24,7 +24,7 @@ CYAN = '\033[36m'
 BOLD = '\033[1m'
 RESET = '\033[0m'
 HELP_TEXT = f"""
-rdump-ff-export.py
+rdump-bexport.py
 
 Export all bookmarks from the locally installed Firefox web browser to a specified directory as both HTML and JSON files.
 
@@ -40,10 +40,10 @@ Export all bookmarks from the locally installed Firefox web browser to a specifi
   --help, -h          Show this help message and exit
 
 {CYAN}{BOLD}Examples:{RESET}
-  python rdump-ff-export.py --dir .
-  python rdump-ff-export.py -d /path/to/exports --name my_bookmarks
-  python rdump-ff-export.py --list-profiles
-  python rdump-ff-export.py --list-folders --profile default-release
+  python rdump-bexport.py --dir .
+  python rdump-bexport.py -d /path/to/exports --name my_bookmarks
+  python rdump-bexport.py --list-profiles
+  python rdump-bexport.py --list-folders --profile default-release
 """
 
 def find_firefox_profiles():
