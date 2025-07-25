@@ -2,10 +2,11 @@
 """
 rdump-bmarks.py
 
-Export all bookmarks from the locally installed Firefox web browser to a specified directory as both HTML and JSON files.
+Export all bookmarks from a single specified folder (and its subfolders) in the locally installed Firefox web browser to a JSON file.
 
 Required arguments:
   --dir, -d      Path to the directory where exported bookmarks will be saved (use '.' for current directory)
+  --folder, -f   Name of the folder to search for and export (case-sensitive, matches any folder with this name)
 
 Optional arguments:
   --name, -n     Base filename for the exported bookmarks (default: 'firefox_bookmarks')
@@ -26,24 +27,19 @@ RESET = '\033[0m'
 HELP_TEXT = f"""
 rdump-bmarks.py
 
-Export all bookmarks from the locally installed Firefox web browser to a specified directory as both HTML and JSON files.
+Export all bookmarks from a single specified folder (and its subfolders) in the locally installed Firefox web browser to a JSON file.
 
 {CYAN}{BOLD}Required arguments:{RESET}
   --dir, -d           Path to the directory where exported bookmarks will be saved (use '.' for current directory)
+  --folder, -f        Name of the folder to search for and export (case-sensitive, matches any folder with this name)
 
 {CYAN}{BOLD}Optional arguments:{RESET}
   --name, -n          Base filename for the exported bookmarks (default: 'firefox_bookmarks')
-  --list-profiles, -l List all found Firefox profiles and exit
-  --list-folders, -f  List bookmark folders in a Firefox profile as a tree diagram (requires --profile)
-  --profile, -p       Profile name to use with --list-folders
-  --folder-path, -F  Path to a specific bookmark folder to export (e.g. "Bookmarks Menu/Programming/Python")
   --help, -h          Show this help message and exit
 
 {CYAN}{BOLD}Examples:{RESET}
-  python rdump-bmarks.py --dir .
-  python rdump-bmarks.py -d /path/to/exports --name my_bookmarks
-  python rdump-bmarks.py --list-profiles
-  python rdump-bmarks.py --list-folders --profile default-release
+  python rdump-bmarks.py --dir . --folder FAVORITES
+  python rdump-bmarks.py -d /path/to/exports -f RECURBATE
 """
 
 def find_firefox_profiles():
@@ -131,25 +127,37 @@ def fetch_bookmark_folders(places_path):
     return folders
 
 def print_folder_tree(folders, root_id=1, prefix="", is_last=True):
-    # root_id=1 is usually the "Bookmarks Menu"
-    if root_id not in folders:
+    # Skip '(no name)' root in listings
+    if root_id not in folders or folders[root_id]['title'] == '(no name)':
         return
     title = folders[root_id]['title']
     connector = "└── " if is_last else "├── "
     print(prefix + connector + title)
-    children = folders[root_id]['children']
+    children = [cid for cid in folders[root_id]['children'] if folders[cid]['title'] != '(no name)']
     for i, child_id in enumerate(children):
         last = (i == len(children) - 1)
         new_prefix = prefix + ("    " if is_last else "│   ")
         print_folder_tree(folders, child_id, new_prefix, last)
 
 def find_folder_id_by_path(folders, path_parts):
-    # path_parts: list of folder names, e.g. ['Bookmarks Menu', 'Programming', 'Python']
+    # Accept both user-facing and internal names for root folders
+    # Map user-friendly names to internal names
+    name_map = {
+        "Bookmarks Menu": ["Bookmarks Menu", "menu"],
+        "Bookmarks Toolbar": ["Bookmarks Toolbar", "toolbar"],
+        "Other Bookmarks": ["Other Bookmarks", "(unfiled)", "unfiled"],
+    }
     # roots mapping
-    roots = {"Bookmarks Menu": 1, "Bookmarks Toolbar": 2, "Other Bookmarks": 3}
+    roots = {"Bookmarks Menu": 1, "Bookmarks Toolbar": 2, "Other Bookmarks": 3, "menu": 1, "toolbar": 2, "(unfiled)": 3, "unfiled": 3}
     if not path_parts:
         return None, None
+    # Normalize root name
     root_name = path_parts[0]
+    # Try mapping user-friendly to internal
+    for friendly, aliases in name_map.items():
+        if root_name in aliases:
+            root_name = friendly
+            break
     if root_name not in roots:
         return None, None
     current_id = roots[root_name]
@@ -157,6 +165,9 @@ def find_folder_id_by_path(folders, path_parts):
     for part in path_parts[1:]:
         found = False
         for child_id in folders[current_id]['children']:
+            # Skip '(no name)'
+            if folders[child_id]['title'] == '(no name)':
+                continue
             if folders[child_id]['title'] == part:
                 current_id = child_id
                 current_title = part
@@ -222,46 +233,6 @@ def fetch_bookmark_info(places_path, bookmark_ids=None):
     conn.close()
     return bookmarks
 
-def export_bookmarks_html(bookmarks, out_path):
-    with open(out_path, 'w', encoding='utf-8') as f:
-        f.write('<!DOCTYPE NETSCAPE-Bookmark-file-1>\n')
-        f.write('<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">\n')
-        f.write('<TITLE>Bookmarks</TITLE>\n')
-        f.write('<H1>Bookmarks</H1>\n')
-        f.write('<DL><p>\n')
-        for bm in bookmarks:
-            f.write(f'    <DT><A HREF="{bm["url"]}">{bm["title"]}</A>\n')
-        f.write('</DL><p>\n')
-    print(f"Exported HTML: {out_path}")
-
-def export_bookmarks_html_with_folders(bookmarks, folders, out_path, root_ids):
-    # Build a map from parent to children (folders and bookmarks)
-    folder_children = {fid: [] for fid in folders}
-    bookmark_by_parent = {}
-    for bm in bookmarks:
-        bookmark_by_parent.setdefault(bm['parent'], []).append(bm)
-    def write_folder(f, folder_id, indent=0):
-        folder = folders[folder_id]
-        ind = '    ' * indent
-        f.write(f'{ind}<DT><H3>{folder["title"]}</H3>\n')
-        f.write(f'{ind}<DL><p>\n')
-        # Bookmarks in this folder
-        for bm in bookmark_by_parent.get(folder_id, []):
-            f.write(f'{ind}    <DT><A HREF="{bm["url"]}">{bm["title"]}</A>\n')
-        # Subfolders
-        for child_id in folder['children']:
-            write_folder(f, child_id, indent+1)
-        f.write(f'{ind}</DL><p>\n')
-    with open(out_path, 'w', encoding='utf-8') as f:
-        f.write('<!DOCTYPE NETSCAPE-Bookmark-file-1>\n')
-        f.write('<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">\n')
-        f.write('<TITLE>Bookmarks</TITLE>\n')
-        f.write('<H1>Bookmarks</H1>\n')
-        for root_id in root_ids:
-            if root_id in folders:
-                write_folder(f, root_id)
-    print(f"Exported HTML: {out_path}")
-
 def export_bookmarks_json(bookmarks, out_path):
     import json
     with open(out_path, 'w', encoding='utf-8') as f:
@@ -299,49 +270,48 @@ def export_bookmarks_json_with_folders(bookmarks, folders, out_path, root_ids):
         json.dump(tree, f, indent=2, ensure_ascii=False)
     print(f"Exported JSON: {out_path}")
 
+def find_folders_by_name(folders, name):
+    # Return a list of folder IDs whose title matches 'name' (case-sensitive)
+    return [fid for fid, f in folders.items() if f['title'] == name]
+
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Export all bookmarks from the locally installed Firefox web browser to a specified directory as both HTML and JSON files.",
+        description="Export all bookmarks from a single specified folder (and its subfolders) in the locally installed Firefox web browser to a JSON file.",
         add_help=False,
         usage=HELP_TEXT
     )
-    parser.add_argument('--dir', '-d', required=False, help='Directory to save exported bookmarks (use "." for current directory)')
+    parser.add_argument('--dir', '-d', required=True, help='Directory to save exported bookmarks (use "." for current directory)')
+    parser.add_argument('--folder', '-f', required=True, help='Name of the folder to search for and export (case-sensitive)')
     parser.add_argument('--name', '-n', default='firefox_bookmarks', help='Base filename for exported bookmarks (default: firefox_bookmarks)')
-    parser.add_argument('--list-profiles', '-l', action='store_true', help='List all found Firefox profiles and exit')
-    parser.add_argument('--list-folders', '-f', action='store_true', help='List bookmark folders in a Firefox profile (requires --profile)')
-    parser.add_argument('--profile', '-p', help='Profile name to use with --list-folders')
-    parser.add_argument('--folder-path', '-F', help='Path to a specific bookmark folder to export (e.g. "Bookmarks Menu/Programming/Python")')
     parser.add_argument('--help', '-h', action='store_true', help='Show this help message and exit')
-    args = parser.parse_args()
-    if args.help or (not args.dir and not args.list_profiles and not args.list_folders):
-        print(HELP_TEXT)
-        sys.exit(0)
-    return args
+    return parser.parse_args()
+
+def build_export_tree(folders, bookmarks, folder_id):
+    # Build a nested dict structure for JSON export starting from folder_id
+    bookmark_by_parent = {}
+    for bm in bookmarks:
+        bookmark_by_parent.setdefault(bm['parent'], []).append({
+            'id': bm['id'],
+            'title': bm['title'],
+            'url': bm['url'],
+            'dateAdded': bm['dateAdded'],
+            'lastModified': bm['lastModified'],
+        })
+    def build_node(fid):
+        folder = folders[fid]
+        node = {
+            'id': fid,
+            'title': folder['title'],
+            'bookmarks': bookmark_by_parent.get(fid, []),
+            'folders': [build_node(cid) for cid in folder['children']]
+        }
+        return node
+    return build_node(folder_id)
 
 def main():
     args = parse_args()
-    if args.list_profiles:
-        profiles = find_firefox_profiles()
-        print_profiles_list(profiles)
-        sys.exit(0)
-    if args.list_folders:
-        if not args.profile:
-            print("Error: --list-folders requires --profile PROFILE_NAME\n")
-            print(HELP_TEXT)
-            sys.exit(1)
-        profiles = find_firefox_profiles()
-        profile = get_profile_by_name(profiles, args.profile)
-        if not profile or not profile['places']:
-            print(f"Error: Profile '{args.profile}' not found or has no places.sqlite database.")
-            sys.exit(1)
-        print(f"\nBookmark folders for profile: {args.profile}\n")
-        folders = fetch_bookmark_folders(profile['places'])
-        roots = {"Bookmarks Menu": 1, "Bookmarks Toolbar": 2, "Other Bookmarks": 3}
-        for root_name, root_id in roots.items():
-            if root_id in folders:
-                print(f"{root_name}:")
-                print_folder_tree(folders, root_id)
-                print()
+    if args.help or not args.dir or not getattr(args, 'folder', None):
+        print(HELP_TEXT)
         sys.exit(0)
     dir_path = args.dir
     if dir_path == ".":
@@ -351,10 +321,6 @@ def main():
         print(HELP_TEXT)
         sys.exit(1)
     base_name = args.name
-    folder_id = None
-    folder_title = None
-    bookmark_ids = None
-    bookmarks = None
     profiles = find_firefox_profiles()
     profile = None
     for p in profiles:
@@ -365,29 +331,25 @@ def main():
         print("Error: No Firefox profile with a bookmarks database found.")
         sys.exit(1)
     places_path = profile['places']
-    if args.folder_path:
-        folder_path_parts = [part.strip() for part in args.folder_path.split('/') if part.strip()]
-        folders = fetch_bookmark_folders(places_path)
-        folder_id, folder_title = find_folder_id_by_path(folders, folder_path_parts)
-        if folder_id is None:
-            print(f"Error: Folder path '{args.folder_path}' not found in bookmarks.")
-            sys.exit(1)
+    folders = fetch_bookmark_folders(places_path)
+    folder_ids = find_folders_by_name(folders, args.folder)
+    if not folder_ids:
+        print(f"Error: No folder named '{args.folder}' found in bookmarks.")
+        sys.exit(1)
+    # Export the structure for each matching folder
+    export_trees = []
+    for folder_id in folder_ids:
+        # Collect all bookmarks under this folder
         bookmark_ids = collect_bookmark_ids_under_folder(places_path, folder_id)
         bookmarks = fetch_bookmark_info(places_path, bookmark_ids)
-        html_path = os.path.join(dir_path, base_name + '.html')
-        json_path = os.path.join(dir_path, base_name + '.json')
-        # Only export the selected folder as root
-        export_bookmarks_html_with_folders(bookmarks, folders, html_path, [folder_id])
-        export_bookmarks_json_with_folders(bookmarks, folders, json_path, [folder_id])
-    else:
-        folders = fetch_bookmark_folders(places_path)
-        bookmarks = fetch_bookmark_info(places_path)
-        html_path = os.path.join(dir_path, base_name + '.html')
-        json_path = os.path.join(dir_path, base_name + '.json')
-        # Export all three main roots if present
-        root_ids = [rid for rid in [1, 2, 3] if rid in folders]
-        export_bookmarks_html_with_folders(bookmarks, folders, html_path, root_ids)
-        export_bookmarks_json_with_folders(bookmarks, folders, json_path, root_ids)
+        export_trees.append(build_export_tree(folders, bookmarks, folder_id))
+    json_path = os.path.join(dir_path, base_name + '.json')
+    import json
+    # If only one match, export as a single object; else, as a list
+    export_data = export_trees[0] if len(export_trees) == 1 else export_trees
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(export_data, f, indent=2, ensure_ascii=False)
+    print(f"Exported folder structure to: {json_path}")
 
 if __name__ == "__main__":
     main() 
