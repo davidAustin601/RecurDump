@@ -9,7 +9,8 @@ Required arguments:
   --folder, -f   Name of the folder to search for and export (case-sensitive, matches any folder with this name)
 
 Optional arguments:
-  --name, -n     Base filename for the exported bookmarks (default: 'firefox_bookmarks')
+  --export-name, -e  Base filename for the exported bookmarks (default: 'firefox_bookmarks')
+  --input-links, -i   Path to a text file with one link per line to compare against the folder. If used, the script will output two text files: one with links found in the folder, and one with links not found.
   --help, -h     Show this help message and exit
 
 If the user provides '.', the script will use the current working directory. The script is designed to work globally (can be placed in $PATH and run from any directory).
@@ -20,6 +21,8 @@ import sys
 import configparser
 from pathlib import Path
 import sqlite3
+import tempfile
+import shutil
 
 CYAN = '\033[36m'
 BOLD = '\033[1m'
@@ -27,19 +30,33 @@ RESET = '\033[0m'
 HELP_TEXT = f"""
 rdump-bmarks.py
 
-Export all bookmarks from a single specified folder (and its subfolders) in the locally installed Firefox web browser to a JSON file.
+Export all bookmarks from a single specified folder (and its subfolders)
+in the locally installed Firefox web browser to a JSON file, or compare a
+list of links to the folder.
 
 {CYAN}{BOLD}Required arguments:{RESET}
-  --dir, -d           Path to the directory where exported bookmarks will be saved (use '.' for current directory)
-  --folder, -f        Name of the folder to search for and export (case-sensitive, matches any folder with this name)
+  --dir, -d           Path to the directory where exported bookmarks will be
+                      saved (use '.' for current directory)
+  --folder, -f        Name of the folder to search for and export
+                      (case-sensitive, matches any folder with this name)
 
 {CYAN}{BOLD}Optional arguments:{RESET}
-  --name, -n          Base filename for the exported bookmarks (default: 'firefox_bookmarks')
+  --export-name, -e   Base filename for the exported bookmarks
+                      (default: 'firefox_bookmarks')
+  --input-links, -i   Path to a text file with one link per line to compare
+                      against the folder. If used, the script will output two
+                      text files: one with links found in the folder, and one
+                      with links not found.
   --help, -h          Show this help message and exit
 
 {CYAN}{BOLD}Examples:{RESET}
   python rdump-bmarks.py --dir . --folder FAVORITES
-  python rdump-bmarks.py -d /path/to/exports -f RECURBATE
+  python rdump-bmarks.py -d /path/to/exports -f RECURBATE -e recur_links
+  python rdump-bmarks.py -d . -f FAVORITES -i my_links.txt
+
+The input file for --input-links should have one link per line, with no
+commas or extra characters. The script will generate '<export-name>_found.txt'
+and '<export-name>_not_found.txt' in the output directory.
 """
 
 def find_firefox_profiles():
@@ -276,13 +293,14 @@ def find_folders_by_name(folders, name):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Export all bookmarks from a single specified folder (and its subfolders) in the locally installed Firefox web browser to a JSON file.",
+        description="Export all bookmarks from a single specified folder (and its subfolders) in the locally installed Firefox web browser to a JSON file, or compare a list of links to the folder.",
         add_help=False,
         usage=HELP_TEXT
     )
     parser.add_argument('--dir', '-d', required=True, help='Directory to save exported bookmarks (use "." for current directory)')
     parser.add_argument('--folder', '-f', required=True, help='Name of the folder to search for and export (case-sensitive)')
-    parser.add_argument('--name', '-n', default='firefox_bookmarks', help='Base filename for exported bookmarks (default: firefox_bookmarks)')
+    parser.add_argument('--export-name', '-e', default='firefox_bookmarks', help='Base filename for exported bookmarks (default: firefox_bookmarks)')
+    parser.add_argument('--input-links', '-i', help='Path to a text file with one link per line to compare against the folder. If used, the script will output two text files: one with links found in the folder, and one with links not found.')
     parser.add_argument('--help', '-h', action='store_true', help='Show this help message and exit')
     return parser.parse_args()
 
@@ -320,7 +338,7 @@ def main():
         print(f"Error: Directory not found: {dir_path}")
         print(HELP_TEXT)
         sys.exit(1)
-    base_name = args.name
+    base_name = args.export_name
     profiles = find_firefox_profiles()
     profile = None
     for p in profiles:
@@ -330,26 +348,59 @@ def main():
     if not profile:
         print("Error: No Firefox profile with a bookmarks database found.")
         sys.exit(1)
-    places_path = profile['places']
-    folders = fetch_bookmark_folders(places_path)
-    folder_ids = find_folders_by_name(folders, args.folder)
-    if not folder_ids:
-        print(f"Error: No folder named '{args.folder}' found in bookmarks.")
-        sys.exit(1)
-    # Export the structure for each matching folder
-    export_trees = []
-    for folder_id in folder_ids:
-        # Collect all bookmarks under this folder
-        bookmark_ids = collect_bookmark_ids_under_folder(places_path, folder_id)
-        bookmarks = fetch_bookmark_info(places_path, bookmark_ids)
-        export_trees.append(build_export_tree(folders, bookmarks, folder_id))
-    json_path = os.path.join(dir_path, base_name + '.json')
+    orig_places_path = profile['places']
     import json
-    # If only one match, export as a single object; else, as a list
-    export_data = export_trees[0] if len(export_trees) == 1 else export_trees
-    with open(json_path, 'w', encoding='utf-8') as f:
-        json.dump(export_data, f, indent=2, ensure_ascii=False)
-    print(f"Exported folder structure to: {json_path}")
+    import tempfile
+    import shutil
+    # Copy the database to a temporary file to avoid lock issues
+    with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
+        tmp_places_path = tmpfile.name
+    shutil.copy2(orig_places_path, tmp_places_path)
+    try:
+        folders = fetch_bookmark_folders(tmp_places_path)
+        folder_ids = find_folders_by_name(folders, args.folder)
+        if not folder_ids:
+            print(f"Error: No folder named '{args.folder}' found in bookmarks.")
+            sys.exit(1)
+        # Collect all bookmarks under all matching folders
+        all_bookmarks = []
+        for folder_id in folder_ids:
+            bookmark_ids = collect_bookmark_ids_under_folder(tmp_places_path, folder_id)
+            all_bookmarks.extend(fetch_bookmark_info(tmp_places_path, bookmark_ids))
+        if args.input_links:
+            # Read links from input file
+            with open(args.input_links, 'r', encoding='utf-8') as f:
+                input_links = set(line.strip() for line in f if line.strip())
+            # Collect all bookmark URLs in the folder(s)
+            bookmark_urls = set(bm['url'] for bm in all_bookmarks if bm['url'])
+            found = sorted(input_links & bookmark_urls)
+            not_found = sorted(input_links - bookmark_urls)
+            found_path = os.path.join(dir_path, base_name + '_found.txt')
+            not_found_path = os.path.join(dir_path, base_name + '_not_found.txt')
+            with open(found_path, 'w', encoding='utf-8') as f:
+                for url in found:
+                    f.write(url + '\n')
+            with open(not_found_path, 'w', encoding='utf-8') as f:
+                for url in not_found:
+                    f.write(url + '\n')
+            print(f"Exported {len(found)} found links to: {found_path}")
+            print(f"Exported {len(not_found)} not found links to: {not_found_path}")
+        else:
+            # Default: export folder structure as JSON
+            export_trees = []
+            for folder_id in folder_ids:
+                bookmarks = [bm for bm in all_bookmarks if bm['parent'] == folder_id or bm['id'] == folder_id]
+                export_trees.append(build_export_tree(folders, bookmarks, folder_id))
+            json_path = os.path.join(dir_path, base_name + '.json')
+            export_data = export_trees[0] if len(export_trees) == 1 else export_trees
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(export_data, f, indent=2, ensure_ascii=False)
+            print(f"Exported folder structure to: {json_path}")
+    finally:
+        try:
+            os.remove(tmp_places_path)
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     main() 
